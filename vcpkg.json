@@ -1,11 +1,15 @@
 {
   "dependencies": [
-    "glfw3",
     "glad",
+    "glfw3",
     {
-      "name" : "imgui",
-      "version>=" : "1.91.0",
-      "features" : [ "glfw-binding", "opengl3-binding"]
-    }
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding"
+      ],
+      "version>=": "1.91.0"
+    },
+    "spdlog"
   ]
 }
