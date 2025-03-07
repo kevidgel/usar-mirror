@@ -23,11 +23,14 @@ include_directories(
 file(GLOB SOURCES
         "src/main.cpp"
         "src/pipeline.cpp"
+        "src/rw_deque.cpp"
 )
 
 file(GLOB HEADERS
         "src/common.hpp"
         "src/pipeline.hpp"
+        "src/rw_deque.hpp"
+        "src/kalman.hpp"
 )
 
 add_executable(UsARMirror

@@ -17,6 +17,7 @@ git clone <this repo link> --recurse-submodules
 **2. Prebuild**
 - Make sure to have CMake and Ninja installed.
 - Install `glfw2`, `glad` via this [link](https://www.glfw.org).
+- Install `glm` via this [link](https://github.com/g-truc/glm).
 - Install `vcpkg` by via this [link](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started?pivots=shell-bash), and set `VCPKG_ROOT` in `CMakeUserPresets.json` after cloning.
 
 **3. Install OpenPose***
