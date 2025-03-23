@@ -4,6 +4,7 @@ project(UsARMirror)
 set(CMAKE_CXX_STANDARD 17) # OpenPose refuses to compile on >17
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(fmt CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
@@ -21,16 +22,19 @@ include_directories(
 )
 
 file(GLOB SOURCES
+        "src/camera.cpp"
+        "src/gesture.cpp"
         "src/main.cpp"
-        "src/pipeline.cpp"
-        "src/rw_deque.cpp"
+        "src/utils/rw_deque.cpp"
+        "src/ui.cpp"
 )
 
 file(GLOB HEADERS
+        "src/camera.hpp"
         "src/common.hpp"
-        "src/pipeline.hpp"
-        "src/rw_deque.hpp"
-        "src/kalman.hpp"
+        "src/gesture.hpp"
+        "src/utils/rw_deque.hpp"
+        "src/ui.hpp"
 )
 
 add_executable(UsARMirror

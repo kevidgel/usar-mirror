@@ -1,6 +1,7 @@
 # UsAR Mirror
+## About
+https://course.ece.cmu.edu/~ece500/projects/s25-teama4/introduction-and-project-summary/
 
-***
 ## Setup
 
 I have only built this on Debian 12 on x86. If you're on Windows, use WSL2 if you want a smoother experience (otherwise feel free to compile using something like Visual Studio -- it might be easier as OpenPose has prebuilt binaries for _only_ Windows). If you're on Mac OSX, good luck.
