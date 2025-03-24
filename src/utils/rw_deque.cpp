@@ -1,8 +1,10 @@
-#include "rw_deque.hpp"
-
 #include <glm/vec2.hpp>
+#include <map>
 #include <mutex>
 #include <thread>
+
+#include "../event.hpp"
+#include "rw_deque.hpp"
 
 template <typename T> bool RWDeque<T>::empty() const {
     std::shared_lock lock(rwlock);
@@ -122,4 +124,5 @@ std::optional<T> RWDeque<T>::try_pop_back_for(const std::chrono::duration<Rep, P
     return std::nullopt;
 }
 
-template class RWDeque<std::vector<std::pair<uint8_t, glm::vec2>>>;
+template class RWDeque<std::map<uint8_t, glm::vec2>>;
+template class RWDeque<UsArMirror::InputEvent>;

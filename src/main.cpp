@@ -64,9 +64,9 @@ extern "C" int main(int argc, char *argv[]) {
     ImGui_ImplOpenGL3_Init();
 
     // Launch tasks
-    UserInterface userInterface(state);
-    auto cameraInput = std::make_shared<CameraInput>(state, 0, 1280, 720);
-    GestureControlPipeline gestureControlPipeline(state, cameraInput);
+    auto userInterface = std::make_shared<UserInterface>(state);
+    auto cameraInput = std::make_shared<CameraInput>(state, 0);
+    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -81,9 +81,9 @@ extern "C" int main(int argc, char *argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         // Render frontends
-        userInterface.render();
+        userInterface->render();
         cameraInput->render();
-        gestureControlPipeline.render();
+        gestureControlPipeline->render();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -2,29 +2,22 @@
 
 #include <opencv2/opencv.hpp>
 #include <spdlog/spdlog.h>
+#include <unistd.h>
 
 namespace UsArMirror {
-CameraInput::CameraInput(State *state, int idx, int width, int height)
-    : state(state), running(true), width(width), height(height) {
-    // Setup gl texture
-    glGenTextures(1, &textureId);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, nullptr);
-
+CameraInput::CameraInput(State *state, int idx) : state(state), running(true), textureId(-1) {
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
-    cap.set(cv::CAP_PROP_EXPOSURE, 0.01);
+    width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+    height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+    cap.set(cv::CAP_PROP_BRIGHTNESS, 0);
+    spdlog::info("{}", cap.get(cv::CAP_PROP_BRIGHTNESS));
+    spdlog::info("Webcam {}: width: {}, height: {}", idx, width, height);
     if (!cap.isOpened()) {
         throw std::runtime_error("Could not open camera!");
     }
+    // Setup gl texture
+    createGlTexture();
     captureThread = std::thread(&CameraInput::captureLoop, this);
 }
 
@@ -36,12 +29,24 @@ CameraInput::~CameraInput() {
     cap.release();
 }
 
+void CameraInput::createGlTexture() {
+    glGenTextures(1, &textureId);
+    glBindTexture(GL_TEXTURE_2D, textureId);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, nullptr);
+}
+
 void CameraInput::captureLoop() {
     while (running) {
         cv::Mat tempFrame;
         if (cap.read(tempFrame)) {
             std::lock_guard lock(frameMutex);
-            frame = tempFrame.clone();
+            frame = tempFrame;
         }
     }
 }
@@ -52,9 +57,9 @@ void CameraInput::render() {
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, textureId);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
-
-        glBegin(GL_QUADS);
         {
+            glColor3f(1.0f, 1.0f, 1.0f);
+            glBegin(GL_QUADS);
             glTexCoord2f(0.0f, 1.0f);
             glVertex2f(1.0f, -1.0f);
             glTexCoord2f(1.0f, 1.0f);

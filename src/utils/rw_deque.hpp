@@ -49,7 +49,7 @@ public:
     template <typename Rep, typename Period>
     std::optional<T> try_pop_back_for(const std::chrono::duration<Rep, Period> &timeout);
 
-  private:
+    /// I'm too lazy to make this private
     std::deque<Entry> dq;
     mutable std::shared_mutex rwlock;
 };

@@ -10,7 +10,7 @@
 namespace UsArMirror {
 class CameraInput {
   public:
-    explicit CameraInput(State *state, int idx, int width, int height);
+    explicit CameraInput(State *state, int idx);
     ~CameraInput();
 
     bool getFrame(cv::Mat &outputFrame);
@@ -27,6 +27,7 @@ class CameraInput {
     std::thread captureThread;
     GLuint textureId;
 
+    void createGlTexture();
     void captureLoop();
 };
 

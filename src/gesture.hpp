@@ -1,12 +1,11 @@
 #pragma once
 
 #include "camera.hpp"
+#include "common.hpp"
 
 #include <glm/vec2.hpp>
 #include <openpose/headers.hpp>
 #include <optional>
-
-#include "common.hpp"
 
 namespace UsArMirror {
 /**
@@ -22,14 +21,17 @@ class GestureControlPipeline {
 
   private:
     using DatumsPtr = std::shared_ptr<std::vector<std::shared_ptr<op::Datum>>>;
-    RWDeque<std::vector<std::pair<uint8_t, glm::vec2>>> keypointQueue;
+    RWDeque<std::map<uint8_t, glm::vec2>> keypointQueue;
+    std::map<uint8_t, glm::vec2> velocities;
     op::Wrapper opWrapper;
-    State *state;
+    mutable State *state;
     std::thread captureThread;
     std::shared_ptr<CameraInput> camera;
     bool running;
 
-    static std::optional<std::vector<std::pair<uint8_t, glm::vec2>>> getKeypoints(const DatumsPtr &datumsPtr);
+    static std::optional<std::map<uint8_t, glm::vec2>> getKeypoints(const DatumsPtr &datumsPtr);
+    glm::vec2 estimateVelocity(const std::vector<std::pair<std::chrono::system_clock::time_point, glm::vec2>> &measurement) const;
+    void processInputs();
     void configureWrapper();
     void captureLoop();
 };

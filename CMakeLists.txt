@@ -32,7 +32,9 @@ file(GLOB SOURCES
 file(GLOB HEADERS
         "src/camera.hpp"
         "src/common.hpp"
+        "src/event.hpp"
         "src/gesture.hpp"
+        "src/kalman.hpp"
         "src/utils/rw_deque.hpp"
         "src/ui.hpp"
 )
