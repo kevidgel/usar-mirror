@@ -5,14 +5,37 @@
 #include <unistd.h>
 
 namespace UsArMirror {
-CameraInput::CameraInput(State *state, int idx) : state(state), running(true), textureId(-1) {
+CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode)
+    : state(state), running(true), textureId(-1), rotateCode(rotateCode) {
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
+    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
     width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
     height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-    cap.set(cv::CAP_PROP_BRIGHTNESS, 0);
-    spdlog::info("{}", cap.get(cv::CAP_PROP_BRIGHTNESS));
-    spdlog::info("Webcam {}: width: {}, height: {}", idx, width, height);
+    auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
+    spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
+    if (!cap.isOpened()) {
+        throw std::runtime_error("Could not open camera!");
+    }
+    // Setup gl texture
+    createGlTexture();
+    captureThread = std::thread(&CameraInput::captureLoop, this);
+}
+
+CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx)
+    : state(state), running(true), textureId(-1) {
+    // Open capture
+    cap.open(idx, cv::CAP_V4L2);
+    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
+    cap.set(cv::CAP_PROP_BRIGHTNESS, 100);
+    width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
+    height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
+    auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
+    spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
     if (!cap.isOpened()) {
         throw std::runtime_error("Could not open camera!");
     }
@@ -46,7 +69,12 @@ void CameraInput::captureLoop() {
         cv::Mat tempFrame;
         if (cap.read(tempFrame)) {
             std::lock_guard lock(frameMutex);
-            frame = tempFrame;
+            if (rotateCode.has_value()) {
+                rotate(tempFrame, frame, rotateCode.value());
+            }
+            else {
+                frame = tempFrame;
+            }
         }
     }
 }

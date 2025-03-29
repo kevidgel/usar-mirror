@@ -6,6 +6,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(fmt CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(Fontconfig REQUIRED)
+find_package(Freetype CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(GFlags)
@@ -47,6 +49,8 @@ add_executable(UsARMirror
 target_link_libraries(${PROJECT_NAME}
         PRIVATE
         imgui::imgui
+        Freetype::Freetype
+        Fontconfig::Fontconfig
         glad::glad
         glfw
         spdlog::spdlog

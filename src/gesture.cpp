@@ -59,7 +59,7 @@ class PipelineInput : public op::WorkerProducer<std::shared_ptr<std::vector<std:
     std::shared_ptr<CameraInput> camera;
 };
 
-GestureControlPipeline::GestureControlPipeline(State *state, const std::shared_ptr<CameraInput> &camera)
+GestureControlPipeline::GestureControlPipeline(const std::shared_ptr<State>& state, const std::shared_ptr<CameraInput> &camera)
     : opWrapper{op::ThreadManagerMode::AsynchronousOut}, state(state), camera(camera), running(true) {
     configureWrapper();
     captureThread = std::thread(&GestureControlPipeline::captureLoop, this);
@@ -87,6 +87,8 @@ void GestureControlPipeline::captureLoop() {
                 keypointQueue.push_front(o.value());
             }
         }
+        // Compute velocities
+        processInputs();
     }
 }
 
@@ -95,9 +97,9 @@ void GestureControlPipeline::captureLoop() {
  */
 std::optional<std::map<uint8_t, glm::vec2>> GestureControlPipeline::getKeypoints(const DatumsPtr &datumsPtr) {
     try {
+        std::map<uint8_t, glm::vec2> points;
         if (datumsPtr != nullptr && !datumsPtr->empty() && !datumsPtr->at(0)->poseKeypoints.empty()) {
             size_t numPoints = datumsPtr->at(0)->poseKeypoints.getSize().at(1);
-            std::map<uint8_t, glm::vec2> points;
             for (size_t i = 0; i < numPoints; i++) {
                 const float x = datumsPtr->at(0)->poseKeypoints.at(3 * i);
                 const float y = datumsPtr->at(0)->poseKeypoints.at(3 * i + 1);
@@ -107,8 +109,8 @@ std::optional<std::map<uint8_t, glm::vec2>> GestureControlPipeline::getKeypoints
                     points.emplace(static_cast<uint8_t>(i), point);
                 }
             }
-            return points;
         }
+        return points;
     } catch (const std::exception &e) {
         spdlog::error("{} at {}:{}:{}", e.what(), __FILE__, __FUNCTION__, __LINE__);
     }
@@ -127,10 +129,14 @@ void GestureControlPipeline::configureWrapper() {
         op::WrapperStructPose wrapperStructPose{};
         wrapperStructPose.netInputSize = {576, 320};
 
+        op::WrapperStructHand wrapperStructHand{};
+        wrapperStructHand.enable = true;
+
         // use defaults (disable output)
         const op::WrapperStructOutput wrapperStructOutput{};
 
         opWrapper.configure(wrapperStructPose);
+        opWrapper.configure(wrapperStructHand);
         opWrapper.configure(wrapperStructOutput);
     } catch (const std::exception &e) {
         spdlog::error("{} at {}:{}:{}", e.what(), __FILE__, __FUNCTION__, __LINE__);
@@ -149,7 +155,8 @@ glm::vec2 GestureControlPipeline::estimateVelocity(
 
     float dt = (measurement.size() > 1) ? static_cast<float>(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                                  measurement[1].first - measurement[0].first)
-                                                                 .count()) / 1000000000.f
+                                                                 .count()) /
+                                              1000000000.f
                                         : 0.03f;
     glm::mat2 A = glm::mat2(1.f, dt, 0.f, 1.f);
     auto Q = glm::mat2(0.1f);
@@ -159,25 +166,31 @@ glm::vec2 GestureControlPipeline::estimateVelocity(
     KalmanFilter kfX(dt, initialState, initialP, A, Q, H, R);
     KalmanFilter kfY(dt, initialState, initialP, A, Q, H, R);
 
-    for(size_t i = 1; i < measurement.size(); i++) {
-        float dt = static_cast<float>(std::chrono::duration_cast<std::chrono::nanoseconds>(measurement[i].first - measurement[i-1].first).count()) / 1000000000.f;
+    for (size_t i = 1; i < measurement.size(); i++) {
+        float dt = static_cast<float>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          measurement[i].first - measurement[i - 1].first)
+                                          .count()) /
+                   1000000000.f;
         glm::mat2 A = glm::mat2(1.f, dt, 0.f, 1.f);
 
         kfX.setA(A);
         kfY.setA(A);
 
-        float measured_vx = (mapToScreen(measurement[i].second.x, camera->width) - mapToScreen(measurement[i-1].second.x, camera->width)) / dt;
-        float measured_vy = (mapToScreen(measurement[i].second.y, camera->height) - mapToScreen(measurement[i-1].second.y, camera->height)) / dt;
+        float measured_vx = (mapToScreen(measurement[i].second.x, camera->width) -
+                             mapToScreen(measurement[i - 1].second.x, camera->width)) /
+                            dt;
+        float measured_vy = (mapToScreen(measurement[i].second.y, camera->height) -
+                             mapToScreen(measurement[i - 1].second.y, camera->height)) /
+                            dt;
 
         kfX.predict();
         kfX.update(measured_vx);
 
         kfY.predict();
         kfY.update(measured_vy);
-
     }
 
-    return {kfX.getState().x,  kfY.getState().x};
+    return {kfX.getState().x, kfY.getState().x};
 }
 
 void GestureControlPipeline::processInputs() {
@@ -202,29 +215,45 @@ void GestureControlPipeline::processInputs() {
     // Check right swipe
     // Note this doesn't account for depth
     if (velocities[4].x > 2.f || velocities[7].x > 2.f) {
-        auto o = state->inputEventQueue.peek_front();
-        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - o.value().timestamp).count() > 1000) {
-            state->inputEventQueue.push_front(InputEvent::RIGHT_SWIPE);
+        auto o = inputEventQueue.peek_front();
+        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::system_clock::now() - o.value().timestamp)
+                                      .count() > 1000) {
+            inputEventQueue.push_front(InputEvent::RIGHT_SWIPE);
         }
     }
 
     // Check left swipe
-    if (velocities[4].x < -2.f || velocities[7].x <- 2.f) {
-        auto o = state->inputEventQueue.peek_front();
-        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - o.value().timestamp).count() > 1000) {
-            state->inputEventQueue.push_front(InputEvent::LEFT_SWIPE);
+    if (velocities[4].x < -2.f || velocities[7].x < -2.f) {
+        auto o = inputEventQueue.peek_front();
+        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::system_clock::now() - o.value().timestamp)
+                                      .count() > 1000) {
+            inputEventQueue.push_front(InputEvent::LEFT_SWIPE);
         }
     }
-
 }
+
+glm::vec2 GestureControlPipeline::getHand(bool isLeft) {
+    auto poseResult = keypointQueue.peek_front();
+    std::map<uint8_t, glm::vec2> pose;
+    if (poseResult.has_value()) {
+        pose = poseResult.value().val;
+        if (!isLeft && pose.find(4) != pose.end()) {
+            return pose[4];
+        }
+        if (isLeft && pose.find(7) != pose.end()) {
+            return pose[7];
+        }
+    }
+    return {-1, -1};
+}
+
 
 void GestureControlPipeline::render() {
     // Evict points every frame
     keypointQueue.evict(std::chrono::milliseconds(1200));
-    state->inputEventQueue.evict(std::chrono::milliseconds(5000));
-
-    // Compute velocities
-    processInputs();
+    inputEventQueue.evict(std::chrono::milliseconds(5000));
 
     // Obtain latest pose for rendering
     auto poseResult = keypointQueue.peek_front();
@@ -264,9 +293,31 @@ void GestureControlPipeline::render() {
         for (const auto &[i, point] : pose) {
             const float sx = mapToScreen(point.x, camera->width);
             const float sy = mapToScreen(point.y, camera->height);
-            ImVec2 textPos = ImVec2(static_cast<float>(state->viewportWidth) * 0.5f * (sx + 1.f),
-                                    static_cast<float>(state->viewportHeight) * 0.5f * (1.f - sy));
+            ImVec2 textPos =
+                ImVec2(static_cast<float>(camera->width) * state->viewportScaling * 0.5f * (sx + 1.f),
+                       static_cast<float>(camera->height) * state->viewportScaling * 0.5f * (1.f - sy));
             drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), fmt::format("{}", i).c_str());
+        }
+    }
+
+    if (state->flags.gesture.renderHandCircles) {
+        ImDrawList *drawList = ImGui::GetBackgroundDrawList();
+        if (pose.find(4) != pose.end()) {
+            const float lhx = mapToScreen(pose[4].x, camera->width);
+            const float lhy = mapToScreen(pose[4].y, camera->height);
+            ImVec2 leftHandPos =
+                ImVec2(static_cast<float>(camera->width) * state->viewportScaling * 0.5f * (lhx + 1.f),
+                       static_cast<float>(camera->height) * state->viewportScaling * 0.5f * (1.f - lhy));
+            drawList->AddCircle(leftHandPos, 75.f, IM_COL32(255,255,255,150), 40, 3);
+        }
+
+        if (pose.find(7) != pose.end()) {
+            const float rhx = mapToScreen(pose[7].x, camera->width);
+            const float rhy = mapToScreen(pose[7].y, camera->height);
+            ImVec2 rightHandPos =
+                ImVec2(static_cast<float>(camera->width) * state->viewportScaling * 0.5f * (rhx + 1.f),
+                       static_cast<float>(camera->height) * state->viewportScaling * 0.5f * (1.f - rhy));
+            drawList->AddCircle(rightHandPos, 75.f, IM_COL32(255,255,255,150), 40, 3);
         }
     }
 
@@ -286,8 +337,8 @@ void GestureControlPipeline::render() {
     if (state->flags.gesture.showWindow) {
         std::vector<std::string> events;
         {
-            std::shared_lock lock(state->inputEventQueue.rwlock);
-            for (const auto& [ts, event] : state->inputEventQueue.dq) {
+            std::shared_lock lock(inputEventQueue.rwlock);
+            for (const auto &[ts, event] : inputEventQueue.dq) {
                 events.push_back(toString(event));
             }
         }
@@ -296,7 +347,7 @@ void GestureControlPipeline::render() {
             ImGui::Checkbox("Render Keypoints", &state->flags.gesture.renderKeypoints);
             ImGui::Checkbox("Render Eye Level", &state->flags.gesture.renderEyeLevel);
 
-            for (const auto& event : events) {
+            for (const auto &event : events) {
                 ImGui::Text("%s", event.c_str());
             }
         }

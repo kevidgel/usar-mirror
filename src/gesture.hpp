@@ -14,17 +14,19 @@ namespace UsArMirror {
  */
 class GestureControlPipeline {
   public:
-    explicit GestureControlPipeline(State *state, const std::shared_ptr<CameraInput> &camera);
+    explicit GestureControlPipeline(const std::shared_ptr<State>& state, const std::shared_ptr<CameraInput> &camera);
     ~GestureControlPipeline();
 
     void render();
+    glm::vec2 getHand(bool isLeft);
+    RWDeque<InputEvent> inputEventQueue;
 
   private:
     using DatumsPtr = std::shared_ptr<std::vector<std::shared_ptr<op::Datum>>>;
     RWDeque<std::map<uint8_t, glm::vec2>> keypointQueue;
     std::map<uint8_t, glm::vec2> velocities;
     op::Wrapper opWrapper;
-    mutable State *state;
+    mutable std::shared_ptr<State> state;
     std::thread captureThread;
     std::shared_ptr<CameraInput> camera;
     bool running;

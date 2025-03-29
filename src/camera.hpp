@@ -1,16 +1,16 @@
 #pragma once
 
 #include <opencv2/opencv.hpp>
+#include <glad/glad.h>
 #include <thread>
 
 #include "common.hpp"
 
-#include <glad/glad.h>
-
 namespace UsArMirror {
 class CameraInput {
   public:
-    explicit CameraInput(State *state, int idx);
+    explicit CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode);
+    explicit CameraInput(const std::shared_ptr<State>& state, int idx);
     ~CameraInput();
 
     bool getFrame(cv::Mat &outputFrame);
@@ -19,13 +19,14 @@ class CameraInput {
     int width, height;
 
   private:
-    State *state;
+    std::shared_ptr<State> state;
     bool running;
     cv::VideoCapture cap;
     cv::Mat frame;
     std::mutex frameMutex;
     std::thread captureThread;
     GLuint textureId;
+    std::optional<int> rotateCode = std::nullopt;
 
     void createGlTexture();
     void captureLoop();

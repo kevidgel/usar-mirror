@@ -1,5 +1,6 @@
 {
   "dependencies": [
+    "fmt",
     "glad",
     "glfw3",
     "glm",
@@ -7,11 +8,15 @@
       "name": "imgui",
       "features": [
         "glfw-binding",
-        "opengl3-binding"
+        "opengl3-binding",
+        "freetype"
       ],
       "version>=": "1.91.0"
     },
     "spdlog",
-    "fmt"
+    {
+      "name": "fontconfig",
+      "version>=": "2.15.0#1"
+    }
   ]
 }
