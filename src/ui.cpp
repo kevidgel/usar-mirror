@@ -10,7 +10,8 @@ namespace UsArMirror {
 UserInterface::UserInterface(const std::shared_ptr<State> &state,
                              const std::shared_ptr<GestureControlPipeline> &gesture)
     : state(state), gesture(gesture), leftButton(state, ImVec2(300, state->viewportHeight - 300), 150.f, false),
-      rightButton(state, ImVec2(state->viewportWidth - 300, state->viewportHeight - 300), 150.f, true) {}
+      rightButton(state, ImVec2(state->viewportWidth - 300, state->viewportHeight - 300), 150.f, true),
+      centerButton(state, ImVec2(state->viewportWidth / 2, state->viewportHeight - 250), 400.f, 150.f){}
 
 void UserInterface::menuBar() {
     // Menu Bar

@@ -24,6 +24,7 @@ include_directories(
 )
 
 file(GLOB SOURCES
+        "src/arduino.cpp"
         "src/camera.cpp"
         "src/gesture.cpp"
         "src/main.cpp"
@@ -32,6 +33,7 @@ file(GLOB SOURCES
 )
 
 file(GLOB HEADERS
+        "src/arduino.hpp"
         "src/camera.hpp"
         "src/common.hpp"
         "src/event.hpp"

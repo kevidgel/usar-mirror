@@ -26,5 +26,6 @@ struct State {
         } gesture;
     } flags;
     /// Event queue
+    RWDeque<InputEvent> inputEventQueue;
 };
 } // namespace UsArMirror

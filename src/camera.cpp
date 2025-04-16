@@ -31,7 +31,6 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx)
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
-    cap.set(cv::CAP_PROP_BRIGHTNESS, 100);
     width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
     height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
     auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));

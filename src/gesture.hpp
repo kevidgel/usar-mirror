@@ -19,7 +19,6 @@ class GestureControlPipeline {
 
     void render();
     glm::vec2 getHand(bool isLeft);
-    RWDeque<InputEvent> inputEventQueue;
 
   private:
     using DatumsPtr = std::shared_ptr<std::vector<std::shared_ptr<op::Datum>>>;
