@@ -1,21 +1,30 @@
-/**
- * @file constants.hpp
- */
-
 #pragma once
 
 #include <glm/vec2.hpp>
 
-#include "rw_deque.hpp"
+#include "event.hpp"
+#include "utils/rw_deque.hpp"
 
 namespace UsArMirror {
 static const float EPS = std::numeric_limits<float>::epsilon();
+/// Global state. Try not to use this often
 struct State {
-    /// Set to true when render thread is shutting down
-    std::atomic_bool die = false;
-    /// (de)queue of (keypointId, position) pairs.
-    RWDeque<std::vector<std::pair<uint8_t, glm::vec2>>> keypointQueue;
-    /// (de)queue of (keypointId, velocity) pairs.
-    RWDeque<std::vector<std::pair<uint8_t, glm::vec2>>> velocitiesQueue;
+    float viewportScaling = 1.0f;
+    int viewportWidth = 1920;
+    int viewportHeight = 1080;
+    /// Debug flags
+    struct Flags {
+        bool showDebug = false;
+        struct {
+            bool showWindow = false;
+        } general;
+        struct {
+            bool showWindow = false;
+            bool renderKeypoints = false;
+            bool renderEyeLevel = false;
+            bool renderHandCircles = true;
+        } gesture;
+    } flags;
+    /// Event queue
 };
 } // namespace UsArMirror

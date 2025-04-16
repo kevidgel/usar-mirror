@@ -1,11 +1,8 @@
-/**
- * @file main.cpp
- */
-
 #define GLFW_INCLUDE_NONE
 
 #include <GLFW/glfw3.h>
 #include <cstdlib>
+#include <fontconfig/fontconfig.h>
 #include <glad/glad.h>
 #include <glm/vec3.hpp>
 #include <imgui.h>
@@ -13,38 +10,43 @@
 #include <imgui_impl_opengl3.h>
 #include <spdlog/spdlog.h>
 
-#include "pipeline.hpp"
-#include "rw_deque.hpp"
+#include "camera.hpp"
+#include "gesture.hpp"
+#include "ui.hpp"
 
 namespace {
 const char *NAME = "UsARMirror";
 }
 
 namespace UsArMirror {
-/// callback for opengl
-void GLAPIENTRY debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
-                              const GLchar *message, const void *user_param) {
-    if (type != GL_DEBUG_TYPE_ERROR) {
-        spdlog::debug("GL CALLBACK type = 0x{} severity = 0x{}, message = {}\n", type, severity, message);
+std::optional<std::string> get_default_font() {
+    FcConfig *config = FcInitLoadConfigAndFonts();
+    FcPattern *pattern = FcPatternCreate();
+    FcObjectSet *object_set = FcObjectSetBuild(FC_FILE, nullptr);
+    FcFontSet *font_set = FcFontList(config, pattern, object_set);
+
+    std::string font_path;
+    if (font_set && font_set->nfont > 0) {
+        FcChar8 *file = nullptr;
+        if (FcPatternGetString(font_set->fonts[0], FC_FILE, 0, &file) == FcResultMatch) {
+            font_path = reinterpret_cast<const char *>(file);
+        } else {
+            return std::nullopt;
+        }
     } else {
-        spdlog::error("GL CALLBACK type = 0x{} severity = 0x{}, message = {}\n", type, severity, message);
+        return std::nullopt;
     }
-}
 
-void startPipeline(State *state) {
-    Pipeline pipeline(state);
-    pipeline.start();
-}
+    FcFontSetDestroy(font_set);
+    FcObjectSetDestroy(object_set);
+    FcPatternDestroy(pattern);
+    FcConfigDestroy(config);
 
-/// Assign int to arbitrary color
-glm::vec3 intToRgb(uint i) {
-    const float r = static_cast<float>((i * 81059059) % 256) / 255.f;
-    const float g = static_cast<float>((i * 68995967) % 256) / 255.f;
-    const float b = static_cast<float>((i * 41394649) % 256) / 255.f;
-    return {r, g, b};
+    return font_path;
 }
 
 extern "C" int main(int argc, char *argv[]) {
+    auto state = std::make_shared<State>(); // Shared application state
     spdlog::info("Starting {}", NAME);
 
     /********** Init glfw, gl **********/
@@ -54,13 +56,13 @@ extern "C" int main(int argc, char *argv[]) {
     }
 
     GLFWwindow *window;
-    window = glfwCreateWindow(1280, 720, NAME, nullptr, nullptr);
+    window = glfwCreateWindow(state->viewportWidth * state->viewportScaling,
+                              state->viewportHeight * state->viewportScaling, NAME, nullptr, nullptr);
     if (!window) {
         glfwTerminate();
         spdlog::error("Failed to create window");
         return EXIT_FAILURE;
     }
-
     glfwMakeContextCurrent(window);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -74,19 +76,33 @@ extern "C" int main(int argc, char *argv[]) {
     spdlog::info("GL_RENDERER: {}", reinterpret_cast<const char *>(glRenderer));
 
     glEnable(GL_DEBUG_OUTPUT);
-    //glDebugMessageCallback(debugCallback, nullptr); // dont use this on mac
     glEnable(GL_FRAMEBUFFER_SRGB);
     glfwSwapInterval(0);
 
     // Setup ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init();
 
-    /********** Launch tasks **********/
-    auto *state = new State(); // Shared application state
-    //std::thread keypointExtraction(startPipeline, state);
+    // Setup font
+    auto font_path_res = get_default_font();
+    if (font_path_res.has_value()) {
+        std::string font_path = font_path_res.value();
+        spdlog::debug("Using font: {}", font_path);
+        ImFontConfig font_config;
+        io.Fonts->AddFontFromFileTTF(font_path_res.value().c_str(), 16.0f, &font_config);
+    } else {
+        spdlog::warn("Could not find a default font, using the ImGui default font.");
+    }
+
+    // Launch tasks
+    auto cameraInput = std::make_shared<CameraInput>(state, 2);
+    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
+    auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -96,35 +112,31 @@ extern "C" int main(int argc, char *argv[]) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Do something...
-        ImGui::ShowDemoWindow();
-
+        // Clear frame
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glPointSize(10.0);
-        glBegin(GL_POINTS);
-        auto o = state->keypointQueue.peek_front();
-        if (o.has_value()) {
-            for (const auto& [i, point] : o.value().val) {
-                glm::vec3 color = intToRgb(i);
-                glColor3f(color.x, color.y, color.z);
-                // map [0, 1920] x [0, 1080] --> [1.0, -1.0] x [1.0, -1.0]
-                glVertex2f(1.0f - 2.0f * (point.x / 1920.f), 1.0f - 2.0f * (point.y / 1080.f));
-            }
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            state->flags.showDebug = true;
         }
-        glEnd();
-        state->keypointQueue.evict(std::chrono::milliseconds(1200));
+
+        if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+            state->flags.showDebug = false;
+        }
+
+        // Render frontends
+        userInterface->render();
+        cameraInput->render();
+        gestureControlPipeline->render();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
     }
 
     // Cleanup
-    state->die = true;
-    //keypointExtraction.join();
-    delete state;
+    spdlog::info("Cleaning up...");
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

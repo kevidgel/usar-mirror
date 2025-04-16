@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 
 class KalmanFilter {
-  public:
+public:
     KalmanFilter(float dt, const glm::vec2 &initialState, const glm::mat2 &initialP, const glm::mat2 &A,
                  const glm::mat2 &Q, const glm::vec2 &H, float R)
         : dt(dt), x(initialState), P(initialP), A(A), Q(Q), H(H), R(R) {}
@@ -22,9 +22,13 @@ class KalmanFilter {
         P = (I - outerProduct(K, H)) * P;
     }
 
+    void setA(const glm::mat2& newA) {
+        A = newA;
+    }
+
     [[nodiscard]] glm::vec2 getState() const { return x; }
 
-  private:
+private:
     float dt;
     glm::vec2 x;
     glm::mat2 P;
