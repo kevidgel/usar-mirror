@@ -1,5 +1,7 @@
 #define GLFW_INCLUDE_NONE
 
+#include "arduino.hpp"
+
 #include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <fontconfig/fontconfig.h>
@@ -100,9 +102,10 @@ extern "C" int main(int argc, char *argv[]) {
     }
 
     // Launch tasks
-    auto cameraInput = std::make_shared<CameraInput>(state, 2);
+    auto cameraInput = std::make_shared<CameraInput>(state, 0);
     auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
     auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
+    auto arduino = std::make_shared<Arduino>(state);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {

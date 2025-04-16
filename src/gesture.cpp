@@ -59,7 +59,8 @@ class PipelineInput : public op::WorkerProducer<std::shared_ptr<std::vector<std:
     std::shared_ptr<CameraInput> camera;
 };
 
-GestureControlPipeline::GestureControlPipeline(const std::shared_ptr<State>& state, const std::shared_ptr<CameraInput> &camera)
+GestureControlPipeline::GestureControlPipeline(const std::shared_ptr<State> &state,
+                                               const std::shared_ptr<CameraInput> &camera)
     : opWrapper{op::ThreadManagerMode::AsynchronousOut}, state(state), camera(camera), running(true) {
     configureWrapper();
     captureThread = std::thread(&GestureControlPipeline::captureLoop, this);
@@ -88,7 +89,7 @@ void GestureControlPipeline::captureLoop() {
             }
         }
         // Compute velocities
-        processInputs();
+        // processInputs();
     }
 }
 
@@ -215,21 +216,21 @@ void GestureControlPipeline::processInputs() {
     // Check right swipe
     // Note this doesn't account for depth
     if (velocities[4].x > 2.f || velocities[7].x > 2.f) {
-        auto o = inputEventQueue.peek_front();
+        auto o = state->inputEventQueue.peek_front();
         if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
                                   std::chrono::system_clock::now() - o.value().timestamp)
                                       .count() > 1000) {
-            inputEventQueue.push_front(InputEvent::RIGHT_SWIPE);
+            state->inputEventQueue.push_front(InputEvent::RIGHT_SWIPE);
         }
     }
 
     // Check left swipe
     if (velocities[4].x < -2.f || velocities[7].x < -2.f) {
-        auto o = inputEventQueue.peek_front();
+        auto o = state->inputEventQueue.peek_front();
         if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
                                   std::chrono::system_clock::now() - o.value().timestamp)
                                       .count() > 1000) {
-            inputEventQueue.push_front(InputEvent::LEFT_SWIPE);
+            state->inputEventQueue.push_front(InputEvent::LEFT_SWIPE);
         }
     }
 }
@@ -249,11 +250,10 @@ glm::vec2 GestureControlPipeline::getHand(bool isLeft) {
     return {-1, -1};
 }
 
-
 void GestureControlPipeline::render() {
     // Evict points every frame
     keypointQueue.evict(std::chrono::milliseconds(1200));
-    inputEventQueue.evict(std::chrono::milliseconds(5000));
+    state->inputEventQueue.evict(std::chrono::milliseconds(5000));
 
     // Obtain latest pose for rendering
     auto poseResult = keypointQueue.peek_front();
@@ -308,7 +308,7 @@ void GestureControlPipeline::render() {
             ImVec2 leftHandPos =
                 ImVec2(static_cast<float>(camera->width) * state->viewportScaling * 0.5f * (lhx + 1.f),
                        static_cast<float>(camera->height) * state->viewportScaling * 0.5f * (1.f - lhy));
-            drawList->AddCircle(leftHandPos, 75.f, IM_COL32(255,255,255,150), 40, 3);
+            drawList->AddCircle(leftHandPos, 75.f, IM_COL32(255, 255, 255, 150), 40, 3);
         }
 
         if (pose.find(7) != pose.end()) {
@@ -317,7 +317,7 @@ void GestureControlPipeline::render() {
             ImVec2 rightHandPos =
                 ImVec2(static_cast<float>(camera->width) * state->viewportScaling * 0.5f * (rhx + 1.f),
                        static_cast<float>(camera->height) * state->viewportScaling * 0.5f * (1.f - rhy));
-            drawList->AddCircle(rightHandPos, 75.f, IM_COL32(255,255,255,150), 40, 3);
+            drawList->AddCircle(rightHandPos, 75.f, IM_COL32(255, 255, 255, 150), 40, 3);
         }
     }
 
@@ -337,8 +337,8 @@ void GestureControlPipeline::render() {
     if (state->flags.gesture.showWindow) {
         std::vector<std::string> events;
         {
-            std::shared_lock lock(inputEventQueue.rwlock);
-            for (const auto &[ts, event] : inputEventQueue.dq) {
+            std::shared_lock lock(state->inputEventQueue.rwlock);
+            for (const auto &[ts, event] : state->inputEventQueue.dq) {
                 events.push_back(toString(event));
             }
         }
