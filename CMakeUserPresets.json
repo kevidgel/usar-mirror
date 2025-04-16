@@ -5,7 +5,10 @@
             "name": "default",
             "inherits": "vcpkg",
             "environment": {
-                "VCPKG_ROOT": "/opt/vcpkg"
+                "VCPKG_ROOT": "/home/annap/vcpkg",
+		"CMAKE_CXX_COMPILER": "/usr/bin/g++",
+		"CMAKE_C_COMPILER": "/usr/bin/gcc",
+		"CMAKE_MAKE_COMPILER": "/usr/bin/ninja"
             }
         }
     ]

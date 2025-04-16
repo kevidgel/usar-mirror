@@ -10,6 +10,7 @@
       ],
       "version>=": "1.91.0"
     },
-    "spdlog"
+    "spdlog",
+    "glm"
   ]
 }

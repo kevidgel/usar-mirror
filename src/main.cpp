@@ -74,7 +74,7 @@ extern "C" int main(int argc, char *argv[]) {
     spdlog::info("GL_RENDERER: {}", reinterpret_cast<const char *>(glRenderer));
 
     glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(debugCallback, nullptr); // dont use this on mac
+    //glDebugMessageCallback(debugCallback, nullptr); // dont use this on mac
     glEnable(GL_FRAMEBUFFER_SRGB);
     glfwSwapInterval(0);
 
@@ -86,7 +86,7 @@ extern "C" int main(int argc, char *argv[]) {
 
     /********** Launch tasks **********/
     auto *state = new State(); // Shared application state
-    std::thread keypointExtraction(startPipeline, state);
+    //std::thread keypointExtraction(startPipeline, state);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -123,7 +123,7 @@ extern "C" int main(int argc, char *argv[]) {
 
     // Cleanup
     state->die = true;
-    keypointExtraction.join();
+    //keypointExtraction.join();
     delete state;
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
