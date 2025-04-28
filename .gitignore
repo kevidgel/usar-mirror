@@ -4,3 +4,5 @@ cmake-build-release
 .idea
 .vscode
 models/
+gesture.cpp
+gesture.hpp

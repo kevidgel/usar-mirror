@@ -14,14 +14,21 @@ find_package(GFlags)
 find_package(Glog)
 find_package(spdlog CONFIG REQUIRED)
 find_package(OpenCV)
-find_package(OpenPose REQUIRED)
+# find_package(OpenPose REQUIRED)
+find_package(realsense2 REQUIRED)
 
 include_directories(
-        ${OpenPose_INCLUDE_DIRS}
+        # ${OpenPose_INCLUDE_DIRS}
         ${GFLAGS_INCLUDE_DIR}
         ${GLOG_INCLUDE_DIR}
         ${OpenCV_INCLUDE_DIRS}
+        ${realsense2_INCLUDE_DIRS}
+        ${PROJECT_SOURCE_DIR}/deps/tiny_gltf
+        ${PROJECT_SOURCE_DIR}/deps/apriltags-cpp
 )
+
+add_subdirectory(${PROJECT_SOURCE_DIR}/deps/apriltags-cpp)
+
 
 file(GLOB SOURCES
         "src/arduino.cpp"
@@ -56,12 +63,14 @@ target_link_libraries(${PROJECT_NAME}
         glad::glad
         glfw
         spdlog::spdlog
-        ${OpenPose_LIBS}
+        # ${OpenPose_LIBS}
         ${GFLAGS_LIBRARY}
         ${GLOG_LIBRARY}
         ${OpenCV_LIBS}
+        realsense2
+        apriltags
 )
 
 # Transfer openpose/models dir into binary dir
-set(SOURCE_MODELS_DIR "${CMAKE_SOURCE_DIR}/deps/openpose/models")
-file(COPY ${SOURCE_MODELS_DIR} DESTINATION ${CMAKE_BINARY_DIR})
+# set(SOURCE_MODELS_DIR "${CMAKE_SOURCE_DIR}/deps/openpose/models")
+# file(COPY ${SOURCE_MODELS_DIR} DESTINATION ${CMAKE_BINARY_DIR})

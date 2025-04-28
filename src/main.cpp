@@ -130,7 +130,7 @@ extern "C" int main(int argc, char *argv[]) {
         // Render frontends
         userInterface->render();
         cameraInput->render();
-        gestureControlPipeline->render();
+        // gestureControlPipeline->render();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -19,6 +19,8 @@ git clone <this repo link> --recurse-submodules
 - Make sure to have CMake and Ninja installed.
 - Install `glfw3`, `glad` via this [link](https://www.glfw.org).
 - Install `glm` via this [link](https://github.com/g-truc/glm).
+- Install 'realsense' via this [link](https://github.com/intelrealsense/librealsense/releases). *NEW
+- Install Eigen3, BOOST
 - Install `vcpkg` by via this [link](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started?pivots=shell-bash), and set `VCPKG_ROOT` in `CMakeUserPresets.json` after cloning.
 
 **3. Install OpenPose***
