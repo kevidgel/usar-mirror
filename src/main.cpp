@@ -148,25 +148,25 @@ extern "C" int main(int argc, char *argv[]) {
         modelRenderer->render(state->viewportWidth * state->viewportScaling, state->viewportHeight * state->viewportScaling, proj, view, 0.5f);
         
         // gestureControlPipeline->render();
-        // ImGui_ImplOpenGL3_NewFrame();
-        // ImGui_ImplGlfw_NewFrame();
-    //     ImGui::NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
     // //  // Render frontends
-    // //  userInterface->render();
+        userInterface->render();
 
 
-    //     ImGui::Render();
-    //     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
     }
 
     // Cleanup
     spdlog::info("Cleaning up...");
-    // ImGui_ImplOpenGL3_Shutdown();
-    // ImGui_ImplGlfw_Shutdown();
-    // ImGui::DestroyContext();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     modelRenderer->cleanup();
     glfwTerminate();
     return EXIT_SUCCESS;
