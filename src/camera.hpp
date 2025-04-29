@@ -11,16 +11,13 @@
 #include "common.hpp"
 #include "background_shader.h"
 
-#include "AprilTags/TagDetector.h"
-#include "AprilTags/Tag25h9.h"
+#include <opencv2/aruco.hpp>
 
 namespace UsArMirror {
 class CameraInput {
   public:
-    CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode,
-        AprilTags::TagDetector* tagDetector, std::mutex* tagMutex);
-    CameraInput(const std::shared_ptr<State>& state, int idx,
-        AprilTags::TagDetector* tagDetector, std::mutex* tagMutex);
+    CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode);
+    CameraInput(const std::shared_ptr<State>& state, int idx);
     ~CameraInput();
 
     bool getFrame(cv::Mat &outputFrame);
@@ -32,6 +29,7 @@ class CameraInput {
       // std::lock_guard lock(extrinsicsMutex);
       return extrinsicsMatrix.clone();
     }
+
 
     std::unordered_map<std::string, Intrinsics> cameraIntrinsics = {
         {
@@ -91,12 +89,12 @@ class CameraInput {
     void createGlTexture();
     void captureLoop();
     void detectionLoop();
-    void updateExtrinsicsFromAprilTag();
+    void updateExtrinsicsFromAruco();
 
-    AprilTags::TagDetector* tagDetector;
-    std::mutex* tagMutex; // NEW
 
-    float tag_size_meters = 0.0736f; 
+    cv::Ptr<cv::aruco::Dictionary> arucoDict;
+
+    float tag_size_meters = 0.135f; 
 
     std::mutex extrinsicsMutex;
     cv::Mat extrinsicsMatrix = cv::Mat::eye(4, 4, CV_32F);

@@ -205,9 +205,9 @@ void DepthCameraInput::render() {
     }
 }
 
-std::vector<cv::Point3f> DepthCameraInput::getLandmarks3D() {
-    std::lock_guard<std::mutex> lock(landmarkMutex);
-    return landmark3D;
+void DepthCameraInput::getLandmarks3D(std::vector<cv::Point3f>& out) {
+    std::lock_guard<std::mutex> lock(faceMutex);
+    out = landmark3D;
 }
 
 void DepthCameraInput::updateExtrinsicsFromAruco() {

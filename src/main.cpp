@@ -82,7 +82,10 @@ glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) 
     return view;
 }
 
-
+float computeVerticalFOV(const cv::Mat& K, int imageHeight) {
+    float fy = K.at<float>(1, 1);
+    return glm::degrees(2.0f * std::atan(static_cast<float>(imageHeight) / (2.0f * fy)));
+}
 
 void printMat4(const glm::mat4& mat, const std::string& name) {
     std::cout << name << ":\n";
@@ -204,10 +207,10 @@ extern "C" int main(int argc, char *argv[]) {
 
     // Launch tasks
     auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6);
-    // auto cameraInput = std::make_shared<CameraInput>(state, 0, tagDetector, &tagMutex);
+    auto cameraInput = std::make_shared<CameraInput>(state, 0);
     // auto cameraInput2 = std::make_shared<CameraInput>(state, 7); // CHANGE THIS NUMBER TO APPROPRIATE
-    // auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
-    // auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
+    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
+    auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
     auto arduino = std::make_shared<Arduino>(state);
     auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(state, filename);
 
@@ -231,6 +234,20 @@ extern "C" int main(int argc, char *argv[]) {
 
         activeCam->render();
 
+        glm::vec3 model_pos = glm::vec3(0, 0, 0);
+
+        std::vector<cv::Point3f> landmarks;
+        depthCameraInput->getLandmarks3D(landmarks);
+        if (landmarks.size() > 0) {
+            // model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+            model_pos = glm::vec3(landmarks[0].x, -landmarks[0].y, -landmarks[0].z);
+        }
+        // glm::vec3 model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+        std::cout << "model_pos: " <<landmarks[0].x << ", " << landmarks[0].y << ", " << landmarks[0].z << std::endl;
+        auto model_mat = glm::translate(glm::mat4(1.0f), model_pos);
+        model_mat = glm::scale(model_mat, glm::vec3(0.5f));
+
+
         // glm::vec3 model_pos(-3, 0, -3);
         // glm::mat4 model_mat = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
         // glm::mat4 model_mat = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
@@ -250,20 +267,21 @@ extern "C" int main(int argc, char *argv[]) {
 
         
         
-        glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+        // glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
         auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
         auto t_vec = activeCam->getExtrinsics().col(3);
         auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
         auto K = activeCam->intrinsics.getK();
-        // auto proj = getOpenGLProjectionFromOpenCV(K, activeCam->intrinsics.width, activeCam->intrinsics.height, 0.01f, 1000.0f);
-        auto proj = glm::perspective(
-            glm::radians(45.0f),  // 45 degree vertical FOV
-            activeCam->intrinsics.width / (float)activeCam->intrinsics.height,      // Aspect ratio (width/height)
-            0.01f,                // Near plane
-            1000.0f                // Far plane
-        );
+        auto proj = getOpenGLProjectionFromOpenCV(K, activeCam->intrinsics.width, activeCam->intrinsics.height, 0.01f, 1000.0f);
+        // auto proj = glm::perspective(
+        //     glm::radians(42.5f),  // 45 degree vertical FOV
+        //     activeCam->intrinsics.width / (float)activeCam->intrinsics.height,      // Aspect ratio (width/height)
+        //     0.01f,                // Near plane
+        //     1000.0f                // Far plane
+        // );
         // std::cout << "proj: "<< std::endl;
-        // printMat4(proj, "proj");
+        // std::cout << computeVerticalFOV(K, (float)activeCam->intrinsics.height) << std::endl;
+        printMat4(proj, "proj");
         // std::cout << "view: "<< std::endl;
         // printMat4(view, "view");
         // std::cout << "model: "<< std::endl;
@@ -275,25 +293,25 @@ extern "C" int main(int argc, char *argv[]) {
         modelRenderer->render(proj, view, model_mat, 0.5f);     
 
         // gestureControlPipeline->render();
-    //     ImGui_ImplOpenGL3_NewFrame();
-    //     ImGui_ImplGlfw_NewFrame();
-    //     ImGui::NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
-    // // //  // Render frontends
-    //     userInterface->render();
+    // //  // Render frontends
+        userInterface->render();
 
 
-    //     ImGui::Render();
-    //     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
     }
 
     // Cleanup
     spdlog::info("Cleaning up...");
-    // ImGui_ImplOpenGL3_Shutdown();
-    // ImGui_ImplGlfw_Shutdown();
-    // ImGui::DestroyContext();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     modelRenderer->cleanup();
     glfwTerminate();
     return EXIT_SUCCESS;

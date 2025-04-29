@@ -1,16 +1,13 @@
 #include "camera.hpp"
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/aruco.hpp>
 #include <spdlog/spdlog.h>
 #include <unistd.h>
 #include <thread>
 #include <mutex>
 #include <libudev.h>
 #include <string>
-
-#include "AprilTags/TagDetector.h"
-#include "AprilTags/Tag25h9.h"
-
 
 std::string getSerialFromDevicePath(const std::string& devicePath) {
     struct udev *udev = udev_new();
@@ -36,10 +33,9 @@ std::string getSerialFromDevicePath(const std::string& devicePath) {
 
 namespace UsArMirror {
 
-CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode,
-    AprilTags::TagDetector* tagDetector, std::mutex* tagMutex)
-    : state(state), running(true), rotateCode(rotateCode),
-    tagDetector(tagDetector), tagMutex(tagMutex) {
+CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode
+    )
+    : state(state), running(true), rotateCode(rotateCode){
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -58,15 +54,16 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotat
     spdlog::info("Camera {} serial: {}", idx, serial);
     intrinsics = cameraIntrinsics.find(serial)->second;
 
+    arucoDict = cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_250));
+
     createGlTexture();
     captureThread = std::thread(&CameraInput::captureLoop, this);
     detectionThread = std::thread(&CameraInput::detectionLoop, this);
 }
 
-CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx,
-    AprilTags::TagDetector* tagDetector, std::mutex* tagMutex)
-    : state(state), running(true), rotateCode(std::nullopt),
-    tagDetector(tagDetector), tagMutex(tagMutex) {
+CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx
+    )
+    : state(state), running(true), rotateCode(std::nullopt){
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -95,6 +92,8 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx,
     std::string serial = getSerialFromDevicePath(devicePath);
     spdlog::info("Camera {} serial: {}", idx, serial);
     intrinsics = cameraIntrinsics.find(serial)->second;
+
+    arucoDict = cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_250));
 
     createGlTexture();
     captureThread = std::thread(&CameraInput::captureLoop, this);
@@ -138,7 +137,7 @@ void CameraInput::captureLoop() {
 void CameraInput::detectionLoop(){
     while (running){
         std::lock_guard lock(extrinsicsMutex);
-        updateExtrinsicsFromAprilTag(); //get Apriltag too
+        updateExtrinsicsFromAruco(); //get Apriltag too
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
@@ -172,78 +171,45 @@ bool CameraInput::getFrame(cv::Mat &outputFrame) {
 }
 
 
-void CameraInput::updateExtrinsicsFromAprilTag() {
+void CameraInput::updateExtrinsicsFromAruco() {
     cv::Mat frame;
     if (!getFrame(frame)) {
-        spdlog::warn("No color frame available for AprilTag detection.");
+        spdlog::warn("No color frame available for ArUco detection.");
         return;
     }
 
     cv::Mat gray;
     cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
 
-    double t0 = static_cast<double>(cv::getTickCount());
+    std::vector<int> ids;
+    std::vector<std::vector<cv::Point2f>> corners;
+    cv::aruco::detectMarkers(gray, arucoDict, corners, ids);
 
-    std::vector<AprilTags::TagDetection> detections;
-    {
-        std::lock_guard<std::mutex> lock(*tagMutex); // <-- lock the shared TagDetector
-        detections = tagDetector->extractTags(gray);
-    }
-
-    double dt = (static_cast<double>(cv::getTickCount()) - t0) / cv::getTickFrequency();
-
-    if (detections.empty()) {
-        spdlog::warn("No AprilTags detected.");
+    if (ids.empty()) {
+        spdlog::warn("No ArUco markers detected.");
         return;
     }
 
-    // 4. Only use the first detection for now
-    AprilTags::TagDetection& detection = detections[0];
+    auto intr = intrinsics;
+    cv::Mat K = (cv::Mat_<double>(3, 3) << intr.fx, 0, intr.cx,
+                                           0, intr.fy, intr.cy,
+                                           0, 0, 1);
+    cv::Mat dist = cv::Mat::zeros(1, 5, CV_64F);
+    std::vector<cv::Vec3d> rvecs, tvecs;
+    cv::aruco::estimatePoseSingleMarkers(corners, tag_size_meters, K, dist, rvecs, tvecs);
 
-    // 5. Recover relative pose
-    Eigen::Vector3d translation;
-    Eigen::Matrix3d rotation;
-    detection.getRelativeTranslationRotation(
-        tag_size_meters,   // tag size in meters (adjust to your actual tag size)
-        intrinsics.fx, intrinsics.fy,
-        intrinsics.cx, intrinsics.cy,
-        translation, rotation);
+    if (!rvecs.empty()) {
+        cv::Mat R_cv;
+        cv::Rodrigues(rvecs[0], R_cv);
 
-    // 6. Convert rotation matrix to OpenCV
-    Eigen::Matrix3d F;
-    F << 0, 1, 0,
-        0, 0, -1,
-        1, 0, 0;
-    Eigen::Matrix3d fixed_rot = F * rotation;  // fix AprilTag frame convention
+        cv::Mat extrinsic = cv::Mat::eye(4, 4, CV_32F);
+        R_cv.convertTo(extrinsic(cv::Rect(0, 0, 3, 3)), CV_32F);
+        cv::Mat(tvecs[0]).convertTo(extrinsic(cv::Rect(3, 0, 1, 3)), CV_32F);
 
-    cv::Mat R_cv(3, 3, CV_64F);
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            R_cv.at<double>(i, j) = fixed_rot(i, j);
-
-    cv::Mat rvec;
-    cv::Rodrigues(R_cv, rvec);
-    
-    Eigen::Vector3d fixed_trans = F * translation;
-    cv::Mat tvec = (cv::Mat_<double>(3,1) << fixed_trans(0), fixed_trans(1), fixed_trans(2));
-
-    // 7. Build a 4x4 transformation matrix
-    cv::Mat extrinsic = cv::Mat::eye(4, 4, CV_32F);
-    R_cv.convertTo(extrinsic(cv::Rect(0, 0, 3, 3)), CV_32F);
-    tvec.convertTo(extrinsic(cv::Rect(3, 0, 1, 3)), CV_32F);
-
-    {
-        // std::lock_guard lock(extrinsicsMutex);
         extrinsicsMatrix = extrinsic;
-    }
 
-    // 8. Log results
-    // spdlog::info("AprilTag ID: {}", detection.id);
-    // spdlog::info("Translation (x, y, z) = ({:.3f}, {:.3f}, {:.3f}) meters",
-    //     fixed_trans(0), fixed_trans(1), fixed_trans(2));
-    // double yaw, pitch, roll;
-    // wRo_to_euler(fixed_rot, yaw, pitch, roll);
-    // spdlog::info("Rotation (yaw, pitch, roll) = ({:.3f}, {:.3f}, {:.3f}) radians",
-    //              yaw, pitch, roll);
+        // spdlog::info("ArUco ID: {}", ids[0]);
+    }
 }
+
 } // namespace UsArMirror

@@ -60,7 +60,7 @@ public:
         .dist = {-1.43234225e-02f, -5.47372135e-04f, 4.36393052e-04f, -3.06948268e-04f, 5.58948300e-05f}
     };
 
-    std::vector<cv::Point3f> getLandmarks3D();
+    void getLandmarks3D(std::vector<cv::Point3f>& out);
 
     // cv::Mat getK() const;
     // cv::Mat getDist() const;
@@ -118,7 +118,7 @@ private:
 
     cv::Ptr<cv::aruco::Dictionary> arucoDict;
 
-    float tag_size_meters = 0.0736f;  // Set your actual tag size here
+    float tag_size_meters = 0.135f;  // Set your actual tag size here
 };
 
 } // namespace UsArMirror
