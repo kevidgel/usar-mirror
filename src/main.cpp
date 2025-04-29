@@ -7,6 +7,7 @@
 #include <fontconfig/fontconfig.h>
 #include <glad/glad.h>
 #include <glm/vec3.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -15,6 +16,8 @@
 #include "camera.hpp"
 #include "gesture.hpp"
 #include "ui.hpp"
+#include "model_renderer.hpp"
+#include "background_shader.h"
 
 namespace {
 const char *NAME = "UsARMirror";
@@ -48,6 +51,9 @@ std::optional<std::string> get_default_font() {
 }
 
 extern "C" int main(int argc, char *argv[]) {
+    std::string filename = "models/Cube/Cube.gltf";
+    if (argc > 1) filename = argv[1];
+
     auto state = std::make_shared<State>(); // Shared application state
     spdlog::info("Starting {}", NAME);
 
@@ -56,6 +62,9 @@ extern "C" int main(int argc, char *argv[]) {
         spdlog::error("Failed to initialize glfw");
         return EXIT_FAILURE;
     }
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *window;
     window = glfwCreateWindow(state->viewportWidth * state->viewportScaling,
@@ -78,7 +87,11 @@ extern "C" int main(int argc, char *argv[]) {
     spdlog::info("GL_RENDERER: {}", reinterpret_cast<const char *>(glRenderer));
 
     glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_FRAMEBUFFER_SRGB);
+    // glEnable(GL_FRAMEBUFFER_SRGB); //TODO: check if this is needed
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
     glfwSwapInterval(0);
 
     // Setup ImGui
@@ -102,22 +115,19 @@ extern "C" int main(int argc, char *argv[]) {
     }
 
     // Launch tasks
-    auto cameraInput = std::make_shared<CameraInput>(state, 0);
+    auto cameraInput = std::make_shared<CameraInput>(state, 6);
     auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
     auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
     auto arduino = std::make_shared<Arduino>(state);
+    auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(filename);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
         // Clear frame
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        // glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // glClear(GL_COLOR_BUFFER_BIT);
 
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
             state->flags.showDebug = true;
@@ -127,22 +137,37 @@ extern "C" int main(int argc, char *argv[]) {
             state->flags.showDebug = false;
         }
 
-        // Render frontends
-        userInterface->render();
-        cameraInput->render();
-        // gestureControlPipeline->render();
 
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        cameraInput->render();
+
+        glm::vec3 model_pos(-3, 0, -3);
+        glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
+        glm::mat4 proj = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
+        
+        glEnable(GL_DEPTH_TEST);
+        modelRenderer->render(state->viewportWidth * state->viewportScaling, state->viewportHeight * state->viewportScaling, proj, view, 0.5f);
+        
+        // gestureControlPipeline->render();
+        // ImGui_ImplOpenGL3_NewFrame();
+        // ImGui_ImplGlfw_NewFrame();
+    //     ImGui::NewFrame();
+
+    // //  // Render frontends
+    // //  userInterface->render();
+
+
+    //     ImGui::Render();
+    //     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
     }
 
     // Cleanup
     spdlog::info("Cleaning up...");
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    // ImGui_ImplOpenGL3_Shutdown();
+    // ImGui_ImplGlfw_Shutdown();
+    // ImGui::DestroyContext();
+    modelRenderer->cleanup();
     glfwTerminate();
     return EXIT_SUCCESS;
 }

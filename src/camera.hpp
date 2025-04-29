@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "common.hpp"
+#include "background_shader.h"
 
 namespace UsArMirror {
 class CameraInput {
@@ -27,7 +28,7 @@ class CameraInput {
     std::thread captureThread;
     GLuint textureId;
     std::optional<int> rotateCode = std::nullopt;
-
+    BackgroundShader background;
     void createGlTexture();
     void captureLoop();
 };

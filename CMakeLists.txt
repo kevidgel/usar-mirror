@@ -37,6 +37,10 @@ file(GLOB SOURCES
         "src/main.cpp"
         "src/utils/rw_deque.cpp"
         "src/ui.cpp"
+        "src/shaders.cpp"
+        "src/background_shader.cpp"
+        "src/model_renderer.cpp"
+        "src/tiny_gltf_loader.cpp"
 )
 
 file(GLOB HEADERS
@@ -48,6 +52,9 @@ file(GLOB HEADERS
         "src/kalman.hpp"
         "src/utils/rw_deque.hpp"
         "src/ui.hpp"
+        "src/shaders.h"
+        "src/background_shader.hpp"
+        "src/model_renderer.hpp"
 )
 
 add_executable(UsARMirror
