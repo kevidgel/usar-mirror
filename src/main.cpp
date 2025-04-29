@@ -26,9 +26,6 @@
 #include <opencv2/face.hpp>
 #include <opencv2/aruco.hpp>
 
-#include "AprilTags/TagDetector.h"
-#include "AprilTags/Tag25h9.h"
-
 namespace {
 const char *NAME = "UsARMirror";
 }
@@ -81,6 +78,36 @@ glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) 
 
     return view;
 }
+
+// glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) {
+//     glm::mat4 view(1.0f);
+
+//     // Rotation inverse = transpose
+//     view[0][0] =  R_cv.at<float>(0,0);
+//     view[0][1] =  R_cv.at<float>(1,0);
+//     view[0][2] =  R_cv.at<float>(2,0);
+
+//     view[1][0] =  R_cv.at<float>(0,1);
+//     view[1][1] =  R_cv.at<float>(1,1);
+//     view[1][2] =  R_cv.at<float>(2,1);
+
+//     view[2][0] =  R_cv.at<float>(0,2);
+//     view[2][1] =  R_cv.at<float>(1,2);
+//     view[2][2] =  R_cv.at<float>(2,2);
+
+//     // -R^T * t
+//     view[3][0] = -(R_cv.at<float>(0,0) * t_cv.at<float>(0) +
+//                    R_cv.at<float>(0,1) * t_cv.at<float>(1) +
+//                    R_cv.at<float>(0,2) * t_cv.at<float>(2));
+//     view[3][1] = -(R_cv.at<float>(1,0) * t_cv.at<float>(0) +
+//                    R_cv.at<float>(1,1) * t_cv.at<float>(1) +
+//                    R_cv.at<float>(1,2) * t_cv.at<float>(2));
+//     view[3][2] = -(R_cv.at<float>(2,0) * t_cv.at<float>(0) +
+//                    R_cv.at<float>(2,1) * t_cv.at<float>(1) +
+//                    R_cv.at<float>(2,2) * t_cv.at<float>(2));
+
+//     return view;
+// }
 
 float computeVerticalFOV(const cv::Mat& K, int imageHeight) {
     float fy = K.at<float>(1, 1);
@@ -190,10 +217,6 @@ extern "C" int main(int argc, char *argv[]) {
         spdlog::warn("Could not find a default font, using the ImGui default font.");
     }
 
-    // Setup things to share
-    auto tagDetector = new AprilTags::TagDetector(AprilTags::tagCodes25h9);
-    std::mutex tagMutex;
-
     // cv::dnn::Net faceNet = cv::dnn::readNetFromCaffe(
     //     "deploy.prototxt",
     //     "res10_300x300_ssd_iter_140000.caffemodel");
@@ -245,7 +268,9 @@ extern "C" int main(int argc, char *argv[]) {
         // glm::vec3 model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
         std::cout << "model_pos: " <<landmarks[0].x << ", " << landmarks[0].y << ", " << landmarks[0].z << std::endl;
         auto model_mat = glm::translate(glm::mat4(1.0f), model_pos);
-        model_mat = glm::scale(model_mat, glm::vec3(0.5f));
+        model_mat = glm::scale(model_mat, glm::vec3(0.2f));
+        // model_mat = glm::translate(model_mat, glm::vec3(0.0f, 0.0f, 0.135/2.0f));
+
 
 
         // glm::vec3 model_pos(-3, 0, -3);
@@ -272,7 +297,21 @@ extern "C" int main(int argc, char *argv[]) {
         auto t_vec = activeCam->getExtrinsics().col(3);
         auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
         auto K = activeCam->intrinsics.getK();
-        auto proj = getOpenGLProjectionFromOpenCV(K, activeCam->intrinsics.width, activeCam->intrinsics.height, 0.01f, 1000.0f);
+
+        float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
+        float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
+
+        cv::Mat K_scaled = K.clone();
+        K_scaled.at<float>(0, 0) *= scale_x;  // fx
+        K_scaled.at<float>(1, 1) *= scale_y;  // fy
+        K_scaled.at<float>(0, 2) *= scale_x;  // cx
+        K_scaled.at<float>(1, 2) *= scale_y;  // cy
+
+        auto proj = getOpenGLProjectionFromOpenCV(K_scaled, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
+        // std::cout << "width & height" << std::endl;
+        // std::cout << activeCam->intrinsics.width << ", " << activeCam->intrinsics.height << std::endl;
+        // std::cout << state->viewportHeight << ", " << state->viewportWidth << std::endl;
+        
         // auto proj = glm::perspective(
         //     glm::radians(42.5f),  // 45 degree vertical FOV
         //     activeCam->intrinsics.width / (float)activeCam->intrinsics.height,      // Aspect ratio (width/height)
@@ -281,7 +320,7 @@ extern "C" int main(int argc, char *argv[]) {
         // );
         // std::cout << "proj: "<< std::endl;
         // std::cout << computeVerticalFOV(K, (float)activeCam->intrinsics.height) << std::endl;
-        printMat4(proj, "proj");
+        // printMat4(proj, "proj");
         // std::cout << "view: "<< std::endl;
         // printMat4(view, "view");
         // std::cout << "model: "<< std::endl;

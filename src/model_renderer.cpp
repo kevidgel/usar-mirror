@@ -63,8 +63,8 @@ namespace UsArMirror {
       glUniform1i(tex_u, 0); // Set sampler to use GL_TEXTURE0
   
       // 4. Initialize model transforms (optional)
-      model_mat = glm::mat4(1.0f);
-      model_rot = glm::mat4(1.0f);
+      // model_mat = glm::mat4(1.0f);
+      // model_rot = glm::mat4(1.0f);
       model_pos = glm::vec3(0.0f, 0.0f, 0.0f);
       sun_position = glm::vec3(3.0f, 10.0f, -5.0f);
       sun_color = glm::vec3(1.0f);

@@ -165,7 +165,7 @@ void DepthCameraInput::detectionLoop() {
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        spdlog::info("Detect face took {} µs", duration);
+        // spdlog::info("Detect face took {} µs", duration);
     }
 }
 
@@ -213,7 +213,7 @@ void DepthCameraInput::getLandmarks3D(std::vector<cv::Point3f>& out) {
 void DepthCameraInput::updateExtrinsicsFromAruco() {
     cv::Mat frame;
     if (!getFrame(frame)) {
-        spdlog::warn("No color frame available for ArUco detection.");
+        // spdlog::warn("No color frame available for ArUco detection.");
         return;
     }
 
@@ -225,16 +225,17 @@ void DepthCameraInput::updateExtrinsicsFromAruco() {
     cv::aruco::detectMarkers(gray, arucoDict, corners, ids);
 
     if (ids.empty()) {
-        spdlog::warn("No ArUco markers detected.");
+        // spdlog::warn("No ArUco markers detected.");
         return;
     }
 
-    auto intr = impl->pipe.get_active_profile()
-                        .get_stream(RS2_STREAM_COLOR)
-                        .as<rs2::video_stream_profile>()
-                        .get_intrinsics();
-    cv::Mat K = (cv::Mat_<double>(3, 3) << intr.fx, 0, intr.ppx,
-                                           0, intr.fy, intr.ppy,
+    // auto intr = impl->pipe.get_active_profile()
+    //                     .get_stream(RS2_STREAM_COLOR)
+    //                     .as<rs2::video_stream_profile>()
+    //                     .get_intrinsics();
+    auto intr = intrinsics;
+    cv::Mat K = (cv::Mat_<double>(3, 3) << intr.fx, 0, intr.cx,
+                                           0, intr.fy, intr.cy,
                                            0, 0, 1);
     cv::Mat dist = cv::Mat::zeros(1, 5, CV_64F);
 

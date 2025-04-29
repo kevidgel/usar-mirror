@@ -26,12 +26,9 @@ include_directories(
         ${OpenCV_INCLUDE_DIRS}
         ${realsense2_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/deps/tiny_gltf
-        ${PROJECT_SOURCE_DIR}/deps/apriltags-cpp
         ${EIGEN3_INCLUDE_DIR}
         ${Boost_INCLUDE_DIRS}
 )
-
-add_subdirectory(${PROJECT_SOURCE_DIR}/deps/apriltags-cpp)
 
 
 file(GLOB SOURCES
@@ -81,7 +78,6 @@ target_link_libraries(${PROJECT_NAME}
         ${GLOG_LIBRARY}
         ${OpenCV_LIBS}
         realsense2
-        apriltags
         ${Boost_LIBRARIES}
         udev
 )

@@ -48,7 +48,7 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotat
     if (!cap.isOpened()) {
     throw std::runtime_error("Could not open camera!");
     }
-
+    
     std::string devicePath = "/dev/video" + std::to_string(idx);
     std::string serial = getSerialFromDevicePath(devicePath);
     spdlog::info("Camera {} serial: {}", idx, serial);
@@ -77,6 +77,10 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx
         for (int i = 0; i <= 10; ++i) {
             if (i == idx) continue;
             if (cap.open(i, cv::CAP_V4L2)) {
+                cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+                cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
+                cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
+                spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
                 spdlog::warn("Fallback successful: opened camera at index {}", i);
                 idx = i;
                 break;
@@ -148,6 +152,7 @@ void CameraInput::render() {
         cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, textureId);
+        // std::cout<<"frame size" << frame.cols << " " << frame.rows << std::endl;
         // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, frame.cols, frame.rows, 0,
             GL_RGB, GL_UNSIGNED_BYTE, frame.data);
@@ -174,7 +179,7 @@ bool CameraInput::getFrame(cv::Mat &outputFrame) {
 void CameraInput::updateExtrinsicsFromAruco() {
     cv::Mat frame;
     if (!getFrame(frame)) {
-        spdlog::warn("No color frame available for ArUco detection.");
+        // spdlog::warn("No color frame available for ArUco detection.");
         return;
     }
 
@@ -186,7 +191,7 @@ void CameraInput::updateExtrinsicsFromAruco() {
     cv::aruco::detectMarkers(gray, arucoDict, corners, ids);
 
     if (ids.empty()) {
-        spdlog::warn("No ArUco markers detected.");
+        // spdlog::warn("No ArUco markers detected.");
         return;
     }
 
@@ -194,7 +199,7 @@ void CameraInput::updateExtrinsicsFromAruco() {
     cv::Mat K = (cv::Mat_<double>(3, 3) << intr.fx, 0, intr.cx,
                                            0, intr.fy, intr.cy,
                                            0, 0, 1);
-    cv::Mat dist = cv::Mat::zeros(1, 5, CV_64F);
+    cv::Mat dist = intr.getDist();
     std::vector<cv::Vec3d> rvecs, tvecs;
     cv::aruco::estimatePoseSingleMarkers(corners, tag_size_meters, K, dist, rvecs, tvecs);
 
