@@ -21,9 +21,9 @@
 #include <opencv2/dnn.hpp>
 #include <opencv2/objdetect.hpp>
 #include <opencv2/face.hpp>
+#include <opencv2/aruco.hpp>
 
-#include "AprilTags/TagDetector.h"
-#include "AprilTags/Tag25h9.h"
+
 
 namespace UsArMirror {
 
@@ -39,8 +39,7 @@ struct DepthCameraInputImpl {
 
 class DepthCameraInput {
 public:
-    DepthCameraInput(const std::shared_ptr<State>& state, int idx,
-        AprilTags::TagDetector* tagDetector, std::mutex* tagMutex);
+    DepthCameraInput(const std::shared_ptr<State>& state, int idx);
     ~DepthCameraInput();
 
     bool getFrame(cv::Mat& outputFrame);
@@ -76,7 +75,7 @@ private:
     void captureLoop();
     void detectionLoop();
     void tagLoop();
-    void updateExtrinsicsFromAprilTag();
+    void updateExtrinsicsFromAruco();
 
     int width = 640;
     int height = 480;
@@ -117,8 +116,7 @@ private:
     BackgroundShader background;
 
 
-    AprilTags::TagDetector* tagDetector;
-    std::mutex* tagMutex; // <-- NEW
+    cv::Ptr<cv::aruco::Dictionary> arucoDict;
 
     float tag_size_meters = 0.0736f;  // Set your actual tag size here
 };

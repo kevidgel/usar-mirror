@@ -8,6 +8,7 @@
 #include <glad/glad.h>
 #include <glm/vec3.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -19,6 +20,11 @@
 #include "model_renderer.hpp"
 #include "background_shader.h"
 #include "depth_camera.hpp"
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/dnn.hpp>
+#include <opencv2/face.hpp>
+#include <opencv2/aruco.hpp>
 
 #include "AprilTags/TagDetector.h"
 #include "AprilTags/Tag25h9.h"
@@ -47,38 +53,36 @@ glm::mat4 getOpenGLProjectionFromOpenCV(const cv::Mat& K, float width, float hei
   return proj;
 }
 
-glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& tvec) {
-  glm::mat4 view = glm::mat4(1.0f);
 
-  // OpenCV rotation matrix to glm::mat3
-  glm::mat3 R(
-      R_cv.at<float>(0,0), R_cv.at<float>(0,1), R_cv.at<float>(0,2),
-      R_cv.at<float>(1,0), R_cv.at<float>(1,1), R_cv.at<float>(1,2),
-      R_cv.at<float>(2,0), R_cv.at<float>(2,1), R_cv.at<float>(2,2)
-  );
+glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) {
 
-  // OpenCV tvec
-  glm::vec3 t(
-      tvec.at<float>(0),
-      tvec.at<float>(1),
-      tvec.at<float>(2)
-  );
+    // Assume R_cv is already a 3x3 rotation matrix
+    // Assume t_cv is a 3x1 translation vector
 
-  // Invert rotation and translation
-  glm::mat3 R_inv = glm::transpose(R); // Inverse of rotation matrix is transpose
-  glm::vec3 t_inv = -R_inv * t;
+    glm::mat4 view(1.0f);
 
-  // Fill view matrix
-  view[0][0] = R_inv[0][0]; view[1][0] = R_inv[0][1]; view[2][0] = R_inv[0][2];
-  view[0][1] = R_inv[1][0]; view[1][1] = R_inv[1][1]; view[2][1] = R_inv[1][2];
-  view[0][2] = R_inv[2][0]; view[1][2] = R_inv[2][1]; view[2][2] = R_inv[2][2];
+    // Fill rotation part
+    view[0][0] =  R_cv.at<float>(0,0);
+    view[1][0] =  R_cv.at<float>(1,0);
+    view[2][0] =  R_cv.at<float>(2,0);
 
-  view[3][0] = t_inv.x;
-  view[3][1] = t_inv.y;
-  view[3][2] = t_inv.z;
+    view[0][1] = -R_cv.at<float>(0,1);
+    view[1][1] = -R_cv.at<float>(1,1);
+    view[2][1] = -R_cv.at<float>(2,1);
 
-  return view;
+    view[0][2] = -R_cv.at<float>(0,2);
+    view[1][2] = -R_cv.at<float>(1,2);
+    view[2][2] = -R_cv.at<float>(2,2);
+
+    // Fill translation part
+    view[3][0] =  t_cv.at<float>(0);
+    view[3][1] = -t_cv.at<float>(1);
+    view[3][2] = -t_cv.at<float>(2);
+
+    return view;
 }
+
+
 
 void printMat4(const glm::mat4& mat, const std::string& name) {
     std::cout << name << ":\n";
@@ -120,6 +124,7 @@ std::optional<std::string> get_default_font() {
 
 extern "C" int main(int argc, char *argv[]) {
     std::string filename = "models/Cube/Cube.gltf";
+    // std::string filename = "models/ray-ban_glasses.glb";
     if (argc > 1) filename = argv[1];
 
     auto state = std::make_shared<State>(); // Shared application state
@@ -185,14 +190,24 @@ extern "C" int main(int argc, char *argv[]) {
     // Setup things to share
     auto tagDetector = new AprilTags::TagDetector(AprilTags::tagCodes25h9);
     std::mutex tagMutex;
+
+    // cv::dnn::Net faceNet = cv::dnn::readNetFromCaffe(
+    //     "deploy.prototxt",
+    //     "res10_300x300_ssd_iter_140000.caffemodel");
+    
+    // auto facemark = cv::face::FacemarkLBF::create();
+    // facemark->loadModel("lbfmodel.yaml");
+    
+    // spdlog::info("Loaded FaceNet and Facemark globally.");
+    
     
 
     // Launch tasks
-    auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6, tagDetector, &tagMutex);
-    auto cameraInput = std::make_shared<CameraInput>(state, 0, tagDetector, &tagMutex);
+    auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6);
+    // auto cameraInput = std::make_shared<CameraInput>(state, 0, tagDetector, &tagMutex);
     // auto cameraInput2 = std::make_shared<CameraInput>(state, 7); // CHANGE THIS NUMBER TO APPROPRIATE
-    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
-    auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
+    // auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
+    // auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
     auto arduino = std::make_shared<Arduino>(state);
     auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(state, filename);
 
@@ -217,44 +232,68 @@ extern "C" int main(int argc, char *argv[]) {
         activeCam->render();
 
         // glm::vec3 model_pos(-3, 0, -3);
-        // glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
-        // glm::mat4 proj = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
-        glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.001f));
+        // glm::mat4 model_mat = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
+        // glm::mat4 model_mat = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
+        
+        // glm::mat4 proj = glm::perspective(
+        //     glm::radians(45.0f),  // 45 degree vertical FOV
+        //     640.0f / 480.0f,      // Aspect ratio (width/height)
+        //     0.01f,                // Near plane
+        //     100.0f                // Far plane
+        // );
+        // glm::mat4 view = glm::lookAt(
+        //     glm::vec3(0.0f, 0.0f, 3.0f),  // Camera position (move 3 units away from origin)
+        //     glm::vec3(0.0f, 0.0f, 0.0f),  // Look at the origin
+        //     glm::vec3(0.0f, 1.0f, 0.0f)   // Up direction (Y+ is up)
+        // );
+        // glm::mat4 model_mat = glm::mat4(1.0f); // Identity: no scaling, no movement
+
+        
+        
+        glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
         auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
         auto t_vec = activeCam->getExtrinsics().col(3);
         auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
         auto K = activeCam->intrinsics.getK();
-        auto proj = getOpenGLProjectionFromOpenCV(K, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
+        // auto proj = getOpenGLProjectionFromOpenCV(K, activeCam->intrinsics.width, activeCam->intrinsics.height, 0.01f, 1000.0f);
+        auto proj = glm::perspective(
+            glm::radians(45.0f),  // 45 degree vertical FOV
+            activeCam->intrinsics.width / (float)activeCam->intrinsics.height,      // Aspect ratio (width/height)
+            0.01f,                // Near plane
+            1000.0f                // Far plane
+        );
+        // std::cout << "proj: "<< std::endl;
+        // printMat4(proj, "proj");
+        // std::cout << "view: "<< std::endl;
+        // printMat4(view, "view");
+        // std::cout << "model: "<< std::endl;
+        // printMat4(model_mat, "model");
 
-        std::cout << "proj: "<< std::endl;
-        printMat4(proj, "proj");
-        std::cout << "view: "<< std::endl;
-        printMat4(view, "view");
-        std::cout << "model: "<< std::endl;
-        printMat4(model_mat, "model");
-
+        // Combine view and model
+    
         glEnable(GL_DEPTH_TEST);
         modelRenderer->render(proj, view, model_mat, 0.5f);     
+
         // gestureControlPipeline->render();
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+    //     ImGui_ImplOpenGL3_NewFrame();
+    //     ImGui_ImplGlfw_NewFrame();
+    //     ImGui::NewFrame();
 
-    // //  // Render frontends
-        userInterface->render();
+    // // //  // Render frontends
+    //     userInterface->render();
 
 
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    //     ImGui::Render();
+    //     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
     }
 
     // Cleanup
     spdlog::info("Cleaning up...");
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    // ImGui_ImplOpenGL3_Shutdown();
+    // ImGui_ImplGlfw_Shutdown();
+    // ImGui::DestroyContext();
     modelRenderer->cleanup();
     glfwTerminate();
     return EXIT_SUCCESS;
