@@ -16,6 +16,8 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(OpenCV)
 # find_package(OpenPose REQUIRED)
 find_package(realsense2 REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(Boost REQUIRED)
 
 include_directories(
         # ${OpenPose_INCLUDE_DIRS}
@@ -25,6 +27,8 @@ include_directories(
         ${realsense2_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/deps/tiny_gltf
         ${PROJECT_SOURCE_DIR}/deps/apriltags-cpp
+        ${EIGEN3_INCLUDE_DIR}
+        ${Boost_INCLUDE_DIRS}
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/deps/apriltags-cpp)
@@ -33,6 +37,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/deps/apriltags-cpp)
 file(GLOB SOURCES
         "src/arduino.cpp"
         "src/camera.cpp"
+        "src/depth_camera.cpp"
         "src/gesture.cpp"
         "src/main.cpp"
         "src/utils/rw_deque.cpp"
@@ -46,6 +51,7 @@ file(GLOB SOURCES
 file(GLOB HEADERS
         "src/arduino.hpp"
         "src/camera.hpp"
+        "src/depth_camera.hpp"
         "src/common.hpp"
         "src/event.hpp"
         "src/gesture.hpp"
@@ -76,6 +82,8 @@ target_link_libraries(${PROJECT_NAME}
         ${OpenCV_LIBS}
         realsense2
         apriltags
+        ${Boost_LIBRARIES}
+        udev
 )
 
 # Transfer openpose/models dir into binary dir

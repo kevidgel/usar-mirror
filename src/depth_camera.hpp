@@ -13,6 +13,7 @@
 #include <opencv2/dnn.hpp>
 
 #include "common.hpp"
+#include "background_shader.h"
 
 #include <vector>
 #include <atomic>
@@ -26,11 +27,6 @@
 
 namespace UsArMirror {
 
-// struct State {
-//     int viewportWidth;
-//     int viewportHeight;
-// };
-
 struct DepthCameraInputImpl {
     rs2::pipeline pipe;
     rs2::colorizer color_map;
@@ -39,45 +35,36 @@ struct DepthCameraInputImpl {
     rs2::frame depth_frame;
 };
 
+
+
 class DepthCameraInput {
 public:
-    explicit DepthCameraInput(const std::shared_ptr<State>& state, int idx);
+    DepthCameraInput(const std::shared_ptr<State>& state, int idx,
+        AprilTags::TagDetector* tagDetector, std::mutex* tagMutex);
     ~DepthCameraInput();
 
     bool getFrame(cv::Mat& outputFrame);
     void render();
 
-    int width, height;
+    // int width, height;
     cv::Mat getLastColorFrame() const;
     rs2::depth_frame getDepth();
 
-    struct Intrinsics {
-        float fx = 302.02243162f;
-        float fy = 301.80520504f;
-        float cx = 324.73866457f;
-        float cy = 216.85437825f;
-        int width = 640;
-        int height = 480;
-        std::array<float, 5> dist = {-0.05197052f, -0.11827853f, -0.00824217f, -0.00245351f, 0.09130217f};
-        cv::Mat getK() const {
-          return (cv::Mat_<float>(3, 3) <<
-              fx, 0, cx,
-              0, fy, cy,
-              0, 0, 1);
-        }
-        
-        cv::Mat getDist() const {
-            return cv::Mat(1, 5, CV_32F, (void*)dist.data()).clone();
-        }
-    
-      };
 
-    Intrinsics intrinsics;
+    Intrinsics intrinsics = Intrinsics{
+        .fx = 148.22530571f,
+        .fy = 149.44816246f,
+        .cx = 291.64137733f,
+        .cy = 216.22790337,
+        .width = 640,
+        .height = 480,
+        .dist = {-1.43234225e-02f, -5.47372135e-04f, 4.36393052e-04f, -3.06948268e-04f, 5.58948300e-05f}
+    };
 
     std::vector<cv::Point3f> getLandmarks3D();
 
-    cv::Mat getK() const;
-    cv::Mat getDist() const;
+    // cv::Mat getK() const;
+    // cv::Mat getDist() const;
 
     cv::Mat getExtrinsics() const {
         // std::lock_guard lock(extrinsicsMutex);
@@ -88,7 +75,11 @@ private:
     void createGlTexture();
     void captureLoop();
     void detectionLoop();
+    void tagLoop();
     void updateExtrinsicsFromAprilTag();
+
+    int width = 640;
+    int height = 480;
 
     cv::Mat extrinsicsMatrix = cv::Mat::eye(4, 4, CV_32F);
 
@@ -108,6 +99,7 @@ private:
     // Threads
     std::thread captureThread;
     std::thread detectionThread;
+    std::thread tagThread;
 
     // Face detection & landmarks
     cv::CascadeClassifier faceDetector;
@@ -120,9 +112,13 @@ private:
 
     std::vector<cv::Point3f> landmark3D;
     std::mutex landmarkMutex;
-    std::mutex extrinsicsMutex;
+    // std::mutex extrinsicsMutex;
+
+    BackgroundShader background;
+
 
     AprilTags::TagDetector* tagDetector;
+    std::mutex* tagMutex; // <-- NEW
 
     float tag_size_meters = 0.0736f;  // Set your actual tag size here
 };

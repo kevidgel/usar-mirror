@@ -18,12 +18,80 @@
 #include "ui.hpp"
 #include "model_renderer.hpp"
 #include "background_shader.h"
+#include "depth_camera.hpp"
+
+#include "AprilTags/TagDetector.h"
+#include "AprilTags/Tag25h9.h"
 
 namespace {
 const char *NAME = "UsARMirror";
 }
 
 namespace UsArMirror {
+glm::mat4 getOpenGLProjectionFromOpenCV(const cv::Mat& K, float width, float height, float near, float far) {
+  float fx = K.at<float>(0, 0);
+  float fy = K.at<float>(1, 1);
+  float cx = K.at<float>(0, 2);
+  float cy = K.at<float>(1, 2);
+
+  glm::mat4 proj = glm::mat4(0.0f);
+
+  proj[0][0] = 2.0f * fx / width;
+  proj[1][1] = 2.0f * fy / height;
+  proj[2][0] = 2.0f * (cx / width) - 1.0f;
+  proj[2][1] = 2.0f * (cy / height) - 1.0f;
+  proj[2][2] = -(far + near) / (far - near);
+  proj[2][3] = -1.0f;
+  proj[3][2] = -(2.0f * far * near) / (far - near);
+
+  return proj;
+}
+
+glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& tvec) {
+  glm::mat4 view = glm::mat4(1.0f);
+
+  // OpenCV rotation matrix to glm::mat3
+  glm::mat3 R(
+      R_cv.at<float>(0,0), R_cv.at<float>(0,1), R_cv.at<float>(0,2),
+      R_cv.at<float>(1,0), R_cv.at<float>(1,1), R_cv.at<float>(1,2),
+      R_cv.at<float>(2,0), R_cv.at<float>(2,1), R_cv.at<float>(2,2)
+  );
+
+  // OpenCV tvec
+  glm::vec3 t(
+      tvec.at<float>(0),
+      tvec.at<float>(1),
+      tvec.at<float>(2)
+  );
+
+  // Invert rotation and translation
+  glm::mat3 R_inv = glm::transpose(R); // Inverse of rotation matrix is transpose
+  glm::vec3 t_inv = -R_inv * t;
+
+  // Fill view matrix
+  view[0][0] = R_inv[0][0]; view[1][0] = R_inv[0][1]; view[2][0] = R_inv[0][2];
+  view[0][1] = R_inv[1][0]; view[1][1] = R_inv[1][1]; view[2][1] = R_inv[1][2];
+  view[0][2] = R_inv[2][0]; view[1][2] = R_inv[2][1]; view[2][2] = R_inv[2][2];
+
+  view[3][0] = t_inv.x;
+  view[3][1] = t_inv.y;
+  view[3][2] = t_inv.z;
+
+  return view;
+}
+
+void printMat4(const glm::mat4& mat, const std::string& name) {
+    std::cout << name << ":\n";
+    for (int row = 0; row < 4; ++row) {
+        std::cout << "[ ";
+        for (int col = 0; col < 4; ++col) {
+            std::cout << mat[col][row] << " "; // column-major
+        }
+        std::cout << "]\n";
+    }
+}
+
+
 std::optional<std::string> get_default_font() {
     FcConfig *config = FcInitLoadConfigAndFonts();
     FcPattern *pattern = FcPatternCreate();
@@ -114,12 +182,19 @@ extern "C" int main(int argc, char *argv[]) {
         spdlog::warn("Could not find a default font, using the ImGui default font.");
     }
 
+    // Setup things to share
+    auto tagDetector = new AprilTags::TagDetector(AprilTags::tagCodes25h9);
+    std::mutex tagMutex;
+    
+
     // Launch tasks
-    auto cameraInput = std::make_shared<CameraInput>(state, 6);
+    auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6, tagDetector, &tagMutex);
+    auto cameraInput = std::make_shared<CameraInput>(state, 0, tagDetector, &tagMutex);
+    // auto cameraInput2 = std::make_shared<CameraInput>(state, 7); // CHANGE THIS NUMBER TO APPROPRIATE
     auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
     auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
     auto arduino = std::make_shared<Arduino>(state);
-    auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(filename);
+    auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(state, filename);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -136,17 +211,30 @@ extern "C" int main(int argc, char *argv[]) {
         if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
             state->flags.showDebug = false;
         }
-
-
-        cameraInput->render();
-
-        glm::vec3 model_pos(-3, 0, -3);
-        glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
         
+        auto activeCam = depthCameraInput;
+
+        activeCam->render();
+
+        // glm::vec3 model_pos(-3, 0, -3);
+        // glm::mat4 view = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
+        // glm::mat4 proj = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
+        glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.001f));
+        auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
+        auto t_vec = activeCam->getExtrinsics().col(3);
+        auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+        auto K = activeCam->intrinsics.getK();
+        auto proj = getOpenGLProjectionFromOpenCV(K, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
+
+        std::cout << "proj: "<< std::endl;
+        printMat4(proj, "proj");
+        std::cout << "view: "<< std::endl;
+        printMat4(view, "view");
+        std::cout << "model: "<< std::endl;
+        printMat4(model_mat, "model");
+
         glEnable(GL_DEPTH_TEST);
-        modelRenderer->render(state->viewportWidth * state->viewportScaling, state->viewportHeight * state->viewportScaling, proj, view, 0.5f);
-        
+        modelRenderer->render(proj, view, model_mat, 0.5f);     
         // gestureControlPipeline->render();
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();

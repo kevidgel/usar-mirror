@@ -12,18 +12,19 @@
 namespace UsArMirror {
 class ModelRenderer {
 public:
-    ModelRenderer(const std::string& filename);
+    ModelRenderer(const std::shared_ptr<State>& state,const std::string& filename);
     ~ModelRenderer();
 
     void initShader();
 
     // Render a model
-    void render( int width, int height, glm::mat4 proj, glm::mat4 view, float opacity);
+    void render(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat, float opacity);
 
     // Cleanup resources
     void cleanup();
 
 private:
+    std::shared_ptr<State> state;
     // Add private members and helper functions here
     tinygltf::Model model_;
     Shaders shader_;

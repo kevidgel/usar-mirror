@@ -9,54 +9,38 @@
 #include <thread>
 #include <mutex>
 
+// #include <dlib/opencv.h>
+// #include <dlib/image_processing/frontal_face_detector.h>
+// #include <dlib/image_processing/render_face_detections.h>
+// #include <dlib/image_processing.h>
+
 #include "AprilTags/TagDetector.h"
 #include "AprilTags/Tag25h9.h"
 
-
 namespace UsArMirror {
 
-inline double standardRad(double t) {
-    if (t >= 0.) {
-        t = fmod(t+M_PI, 2*M_PI) - M_PI;
-    } else {
-        t = fmod(t-M_PI, -2*M_PI) + M_PI;
-    }
-    return t;
-    }
-    
-    void wRo_to_euler(const Eigen::Matrix3d& wRo, double& yaw, double& pitch, double& roll) {
-        yaw = standardRad(atan2(wRo(1,0), wRo(0,0)));
-        double c = cos(yaw);
-        double s = sin(yaw);
-        pitch = standardRad(atan2(-wRo(2,0), wRo(0,0)*c + wRo(1,0)*s));
-        roll  = standardRad(atan2(wRo(0,2)*s - wRo(1,2)*c, -wRo(0,1)*s + wRo(1,1)*c));
-    }
-    
-
-DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state, int idx)
-    : state(state), running(true), textureId(-1), depth_frame(rs2::frame()) {
+DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state, int idx,
+    AprilTags::TagDetector* tagDetector, std::mutex* tagMutex)
+    : state(state), running(true), textureId(1), depth_frame(rs2::frame()),
+    tagDetector(tagDetector), tagMutex(tagMutex) {
     try {
         impl = std::make_unique<DepthCameraInputImpl>();
+
         rs2::config cfg;
-        cfg.enable_stream(RS2_STREAM_COLOR, state->viewportWidth, state->viewportHeight, RS2_FORMAT_BGR8, 30);
-        cfg.enable_stream(RS2_STREAM_DEPTH, state->viewportWidth, state->viewportHeight, RS2_FORMAT_Z16, 30);
+        cfg.enable_stream(RS2_STREAM_COLOR, width, height, RS2_FORMAT_BGR8, 30);
+        cfg.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, 30);
         spdlog::info("Trying to start RealSense pipeline...");
         impl->pipe.start(cfg);
-
-        width = state->viewportWidth;
-        height = state->viewportHeight;
 
         spdlog::info("RealSense camera started: width={}, height={}", width, height);
 
         faceNet = cv::dnn::readNetFromCaffe(
-            "deploy.prototxt",
-            "res10_300x300_ssd_iter_140000.caffemodel");
+        "deploy.prototxt",
+        "res10_300x300_ssd_iter_140000.caffemodel");
 
         facemark = cv::face::FacemarkLBF::create();
         facemark->loadModel("lbfmodel.yaml");
         spdlog::info("Loaded OpenCV FacemarkLBF model");
-
-        tagDetector = new AprilTags::TagDetector(AprilTags::tagCodes25h9);
 
     } catch (const rs2::error& e) {
         throw std::runtime_error(std::string("RealSense error: ") + e.what());
@@ -65,6 +49,7 @@ DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state, int idx)
     createGlTexture();
     captureThread = std::thread(&DepthCameraInput::captureLoop, this);
     detectionThread = std::thread(&DepthCameraInput::detectionLoop, this);
+    tagThread = std::thread(&DepthCameraInput::tagLoop, this);
 }
 
 DepthCameraInput::~DepthCameraInput() {
@@ -72,6 +57,7 @@ DepthCameraInput::~DepthCameraInput() {
 
     if (captureThread.joinable()) captureThread.join();
     if (detectionThread.joinable()) detectionThread.join();
+    if (tagThread.joinable()) tagThread.join();
 
     if (impl) {
         impl->pipe.stop();
@@ -81,13 +67,8 @@ DepthCameraInput::~DepthCameraInput() {
 void DepthCameraInput::createGlTexture() {
     glGenTextures(1, &textureId);
     glBindTexture(GL_TEXTURE_2D, textureId);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, nullptr);
 }
 
 void DepthCameraInput::captureLoop() {
@@ -115,6 +96,19 @@ void DepthCameraInput::captureLoop() {
     }
 }
 
+void DepthCameraInput::tagLoop(){
+    while (running) {
+        try{
+            // std::lock_guard lock(extrinsicsMutex);
+            updateExtrinsicsFromAprilTag(); //get Apriltag too
+        }
+        catch (const std::exception& e) {
+            spdlog::error("Error in tagLoop: {}", e.what());
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
 void DepthCameraInput::detectionLoop() {
     while (running) {
         cv::Mat currentFrame, depthMat;
@@ -125,6 +119,8 @@ void DepthCameraInput::detectionLoop() {
             depthMat = cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
                                (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone();
         }
+
+        auto start = std::chrono::high_resolution_clock::now();
 
         cv::Mat blob = cv::dnn::blobFromImage(currentFrame, 1.0, cv::Size(300, 300), cv::Scalar(104.0, 177.0, 123.0), false, false);
         faceNet.setInput(blob);
@@ -156,7 +152,8 @@ void DepthCameraInput::detectionLoop() {
                 int x = static_cast<int>(pt.x);
                 int y = static_cast<int>(pt.y);
                 if (x < 0 || x >= depthMat.cols || y < 0 || y >= depthMat.rows) continue;
-
+                
+                // std::cout << "depthMat.type() = " << depthMat.type() << std::endl;
                 uint16_t d = depthMat.at<uint16_t>(y, x);
                 if (d == 0) continue;
 
@@ -191,6 +188,9 @@ void DepthCameraInput::detectionLoop() {
                 landmark3D = points3D;
             }
         }
+        auto end = std::chrono::high_resolution_clock::now(); 
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        spdlog::info("Detect face took {} µs", duration);
 
         // std::this_thread::sleep_for(std::chrono::milliseconds(30));
     }
@@ -201,23 +201,6 @@ bool DepthCameraInput::getFrame(cv::Mat& outputFrame) {
     std::lock_guard lock(frameMutex);
     if (!frame.empty()) {
         outputFrame = frame.clone();
-
-        updateExtrinsicsFromAprilTag();
-
-        std::lock_guard faceLock(faceMutex);
-        for (size_t i = 0; i < faceBoxes.size(); ++i) {
-            // cv::rectangle(outputFrame, faceBoxes[i], cv::Scalar(0, 255, 0), 2);
-            // std::cout << landmarkPoints[i].size() << " landmarks for face " << i << std::endl;
-            // for (const auto& pt : landmarkPoints[i]) {
-            //     cv::circle(outputFrame, pt, 2, cv::Scalar(255, 0, 0), -1);
-            //     // if (pt.x >= 0 && pt.x < outputFrame.cols && pt.y >= 0 && pt.y < outputFrame.rows) {
-            //     //     std::cout << "Point: " << pt << std::endl;
-            //     // } else {
-            //     //     std::cout << "Invalid point: " << pt << std::endl;
-            //     // }
-            // }
-        }
-
         return true;
     }
     return false;
@@ -235,17 +218,22 @@ cv::Mat DepthCameraInput::getLastColorFrame() const {
 void DepthCameraInput::render() {
     cv::Mat frame;
     if (getFrame(frame)) {
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, textureId);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+        cv::Mat resizedFrame;
+        cv::resize(frame, resizedFrame, cv::Size(state->viewportWidth* state->viewportScaling, state->viewportHeight* state->viewportScaling));
 
-        glColor3f(1.0f, 1.0f, 1.0f);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 1.0f); glVertex2f(1.0f, -1.0f);
-        glTexCoord2f(1.0f, 1.0f); glVertex2f(-1.0f, -1.0f);
-        glTexCoord2f(1.0f, 0.0f); glVertex2f(-1.0f, 1.0f);
-        glTexCoord2f(0.0f, 0.0f); glVertex2f(1.0f, 1.0f);
-        glEnd();
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, resizedFrame.cols, resizedFrame.rows, 0,
+            GL_RGB, GL_UNSIGNED_BYTE, resizedFrame.data);
+
+        // Optionally disable depth test if you don't want background to write depth
+        glDisable(GL_DEPTH_TEST);
+
+        background.render(textureId, state->viewportWidth* state->viewportScaling, state->viewportHeight* state->viewportScaling);
+
+        glEnable(GL_DEPTH_TEST);
     }
 }
 
@@ -255,24 +243,24 @@ std::vector<cv::Point3f> DepthCameraInput::getLandmarks3D() {
 }
 
 void DepthCameraInput::updateExtrinsicsFromAprilTag() {
-    cv::Mat colorFrame = getLastColorFrame();
-    if (colorFrame.empty()) {
+    cv::Mat frame;
+    if (!getFrame(frame)) {
         spdlog::warn("No color frame available for AprilTag detection.");
         return;
     }
 
-    // 1. Create AprilTags detector
-    // static AprilTags::TagDetector tagDetector(AprilTags::tagCodes25h9); // or 36h11 depending on your tags
-
-    // 2. Convert to grayscale
     cv::Mat gray;
-    cv::cvtColor(colorFrame, gray, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
 
-    // 3. Detect tags
     double t0 = static_cast<double>(cv::getTickCount());
-    std::vector<AprilTags::TagDetection> detections = tagDetector->extractTags(gray);
+
+    std::vector<AprilTags::TagDetection> detections;
+    {
+        std::lock_guard<std::mutex> lock(*tagMutex); // <-- Lock while using tagDetector
+        detections = tagDetector->extractTags(gray);
+    }
+
     double dt = (static_cast<double>(cv::getTickCount()) - t0) / cv::getTickFrequency();
-    spdlog::info("{} tags detected in {:.3f} seconds", detections.size(), dt);
 
     if (detections.empty()) {
         spdlog::warn("No AprilTags detected.");
@@ -315,18 +303,18 @@ void DepthCameraInput::updateExtrinsicsFromAprilTag() {
     tvec.convertTo(extrinsic(cv::Rect(3, 0, 1, 3)), CV_32F);
 
     {
-        std::lock_guard lock(extrinsicsMutex);
+        // std::lock_guard lock(extrinsicsMutex);
         extrinsicsMatrix = extrinsic;
     }
 
     // 8. Log results
-    spdlog::info("AprilTag ID: {}", detection.id);
-    spdlog::info("Translation (x, y, z) = ({:.3f}, {:.3f}, {:.3f}) meters",
-        fixed_trans(0), fixed_trans(1), fixed_trans(2));
-    double yaw, pitch, roll;
-    wRo_to_euler(fixed_rot, yaw, pitch, roll);
-    spdlog::info("Rotation (yaw, pitch, roll) = ({:.3f}, {:.3f}, {:.3f}) radians",
-                 yaw, pitch, roll);
+    // spdlog::info("AprilTag ID: {}", detection.id);
+    // spdlog::info("Translation (x, y, z) = ({:.3f}, {:.3f}, {:.3f}) meters",
+    //     fixed_trans(0), fixed_trans(1), fixed_trans(2));
+    // double yaw, pitch, roll;
+    // wRo_to_euler(fixed_rot, yaw, pitch, roll);
+    // spdlog::info("Rotation (yaw, pitch, roll) = ({:.3f}, {:.3f}, {:.3f}) radians",
+    //              yaw, pitch, roll);
 }
 
 

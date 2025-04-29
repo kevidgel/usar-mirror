@@ -19,8 +19,8 @@
 
 namespace UsArMirror {
 
-    ModelRenderer::ModelRenderer(const std::string& filename)
-        : modelTexture_(0) {
+    ModelRenderer::ModelRenderer(const std::shared_ptr<State>& state,const std::string& filename)
+        : modelTexture_(0), state(state) {
         std::cout << "Loading model: " << filename << std::endl;
         
         initShader();
@@ -71,7 +71,7 @@ namespace UsArMirror {
     }
   
 
-    void ModelRenderer::render(int width, int height, glm::mat4 proj, glm::mat4 view, float opacity) {
+    void ModelRenderer::render(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat, float opacity) {
         
         if (!shader_.pid) {
             std::cerr << "Shader not initialized!\n";
@@ -86,15 +86,15 @@ namespace UsArMirror {
             return;
         }
       
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, state->viewportWidth * state->viewportScaling, state->viewportHeight * state->viewportScaling);
 
         glUseProgram(shader_.pid);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, modelTexture_);
 
-        model_rot = glm::rotate(model_rot, glm::radians(0.8f), glm::vec3(0, 1, 0));
-        glm::mat4 trans = glm::translate(glm::mat4(1.0f), model_pos);
-        model_mat = trans * model_rot * model_mat;
+        // model_rot = glm::rotate(model_rot, glm::radians(0.8f), glm::vec3(0, 1, 0));
+        // glm::mat4 trans = glm::translate(glm::mat4(1.0f), model_pos);
+        // model_mat = trans * model_rot * model_mat;
 
         glm::mat4 mvp = proj * view * model_mat;
 
@@ -132,6 +132,7 @@ namespace UsArMirror {
       else
         std::cout << "Loaded glTF: " << filename << std::endl;
     
+      dbgModel(model);
       return res;
     }
     
