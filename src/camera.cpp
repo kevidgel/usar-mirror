@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 namespace UsArMirror {
-CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode)
+CameraInput::CameraInput(const std::shared_ptr<State> &state, int idx, int rotateCode)
     : state(state), running(true), textureId(-1), rotateCode(rotateCode) {
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
@@ -17,14 +17,15 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotat
     auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
     spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
     if (!cap.isOpened()) {
-        throw std::runtime_error("Could not open camera!");
+        cameraOpen = false;
+        spdlog::error("Could not open camera! Using empty frame instead.");
     }
     // Setup gl texture
     createGlTexture();
     captureThread = std::thread(&CameraInput::captureLoop, this);
 }
 
-CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx)
+CameraInput::CameraInput(const std::shared_ptr<State> &state, int idx)
     : state(state), running(true), textureId(-1) {
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
@@ -36,7 +37,8 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx)
     auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
     spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
     if (!cap.isOpened()) {
-        throw std::runtime_error("Could not open camera!");
+        cameraOpen = false;
+        spdlog::error("Could not open camera! Using empty frame instead.");
     }
     // Setup gl texture
     createGlTexture();
@@ -65,13 +67,15 @@ void CameraInput::createGlTexture() {
 
 void CameraInput::captureLoop() {
     while (running) {
+        if (!cameraOpen) {
+            continue;
+        }
         cv::Mat tempFrame;
         if (cap.read(tempFrame)) {
             std::lock_guard lock(frameMutex);
             if (rotateCode.has_value()) {
                 rotate(tempFrame, frame, rotateCode.value());
-            }
-            else {
+            } else {
                 frame = tempFrame;
             }
         }

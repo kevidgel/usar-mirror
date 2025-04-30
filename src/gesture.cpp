@@ -233,6 +233,24 @@ void GestureControlPipeline::processInputs() {
             state->inputEventQueue.push_front(InputEvent::LEFT_SWIPE);
         }
     }
+
+    if (velocities[4].y > 2.f || velocities[7].y > 2.f) {
+        auto o = state->inputEventQueue.peek_front();
+        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::system_clock::now() - o.value().timestamp)
+                                  .count() > 1000) {
+            state->inputEventQueue.push_front(InputEvent::DOWN_SWIPE);
+        }
+    }
+
+    if (velocities[4].y < -2.f || velocities[7].y < -2.f) {
+        auto o = state->inputEventQueue.peek_front();
+        if (!o.has_value() || std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::system_clock::now() - o.value().timestamp)
+                                  .count() > 1000) {
+            state->inputEventQueue.push_front(InputEvent::UP_SWIPE);
+        }
+    }
 }
 
 glm::vec2 GestureControlPipeline::getHand(bool isLeft) {

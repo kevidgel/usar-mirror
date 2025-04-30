@@ -4,6 +4,8 @@ project(UsARMirror)
 set(CMAKE_CXX_STANDARD 17) # OpenPose refuses to compile on >17
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_subdirectory(deps/openpose)
+
 find_package(fmt CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Fontconfig REQUIRED)

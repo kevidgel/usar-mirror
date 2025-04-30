@@ -12,12 +12,27 @@ namespace UsArMirror {
 /// Clickable arrow button element
 class ArrowButton {
   public:
-    ArrowButton(const std::shared_ptr<State> &state, ImVec2 pos, float size, bool isRight)
-        : state(state), size(size), isRight(isRight) {
+    // ArrowButton(const std::shared_ptr<State> &state, ImVec2 pos, float size, bool isRight)
+    //     : state(state), size(size), isRight(isRight) {
+    //     p1 = pos;
+    //     p2 = ImVec2(p1.x + (isRight ? size : -size), p1.y + size * 0.5f);
+    //     p3 = ImVec2(p1.x, p1.y + size);
+    // }
+    ArrowButton(const std::shared_ptr<State> &state, ImVec2 pos, float size, bool isHorizontal, bool isPositive)
+        : state(state), size(size), isHorizontal(isHorizontal), isPositive(isPositive) {
         p1 = pos;
-        p2 = ImVec2(p1.x + (isRight ? size : -size), p1.y + size * 0.5f);
-        p3 = ImVec2(p1.x, p1.y + size);
+        if (isHorizontal) {
+            // Horizontal arrow: Left or Right
+            p2 = ImVec2(p1.x + (isPositive ? size : -size), p1.y + size * 0.5f);
+            p3 = ImVec2(p1.x, p1.y + size);
+        }
+        else {
+            // Vertical arrow: Up or Down
+            p2 = ImVec2(p1.x + size * 0.5f, p1.y + (isPositive ? size : -size));
+            p3 = ImVec2(p1.x - size * 0.5f, p1.y + (isPositive ? size : -size));
+        }
     }
+
 
     void draw(ImDrawList *drawList) {
         // Draw arrow
@@ -34,7 +49,13 @@ class ArrowButton {
         // Buffer after progress completion
         const float bufferDuration = 1.0f;
         if (progress >= 1.0f && bufferStartTime < 0.0f) {
-            state->inputEventQueue.push_back(isRight ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            //state->inputEventQueue.push_back(isRight ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            if (isHorizontal) {
+                state->inputEventQueue.push_back(isPositive ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            }
+            else {
+                state->inputEventQueue.push_back(isPositive ? InputEvent::DOWN_SWIPE : InputEvent::UP_SWIPE);
+            }
             bufferStartTime = currentTime;
         }
 
@@ -86,7 +107,9 @@ class ArrowButton {
   private:
     std::shared_ptr<State> state;
     ImVec2 p1, p2, p3;
-    bool isRight;
+    //bool isRight;
+    bool isHorizontal;
+    bool isPositive;
     ImU32 color = IM_COL32(255, 255, 255, 255);
     float size;
     float progress = 0.0f;
@@ -120,7 +143,13 @@ class Button {
         // Buffer after progress completion
         const float bufferDuration = 1.0f;
         if (progress >= 1.0f && bufferStartTime < 0.0f) {
-            state->inputEventQueue.push_back(isRight ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            //state->inputEventQueue.push_back(isRight ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            if (isHorizontal) {
+                state->inputEventQueue.push_back(isPositive ? InputEvent::RIGHT_SWIPE : InputEvent::LEFT_SWIPE);
+            }
+            else {
+                state->inputEventQueue.push_back(isPositive ? InputEvent::DOWN_SWIPE : InputEvent::UP_SWIPE);
+            }
             bufferStartTime = currentTime;
         }
 
@@ -175,7 +204,9 @@ class Button {
     std::shared_ptr<State> state;
     ImVec2 p1, p2, p3, p4;
     float size;
-    bool isRight;
+    //bool isRight;
+    bool isHorizontal;
+    bool isPositive;
     ImU32 color = IM_COL32(255, 255, 255, 255);
     float progress = 0.0f;
     double lastInteractionTime;
@@ -195,7 +226,11 @@ class UserInterface {
     ArrowButton leftButton;
     ArrowButton rightButton;
     Button centerButton;
+    ArrowButton topButton;
+    ArrowButton bottomButton;
+    int currentFilterIndex = 0; // 0: Filter 0, 1: Filter 1, 2: Filter 2
 
     void menuBar();
+    void drawFilterTabs();
 };
 } // namespace UsArMirror

@@ -27,6 +27,7 @@ class CameraInput {
     std::thread captureThread;
     GLuint textureId;
     std::optional<int> rotateCode = std::nullopt;
+    bool cameraOpen = true;
 
     void createGlTexture();
     void captureLoop();

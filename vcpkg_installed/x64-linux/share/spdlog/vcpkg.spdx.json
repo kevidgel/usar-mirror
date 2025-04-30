@@ -1,0 +1,137 @@
+{
+  "$schema": "https://raw.githubusercontent.com/spdx/spdx-spec/v2.2.1/schemas/spdx-schema.json",
+  "spdxVersion": "SPDX-2.2",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "documentNamespace": "https://spdx.org/spdxdocs/spdlog-x64-linux-1.15.1-b4228d1c-d5d6-4a77-b85f-af2d67b784ac",
+  "name": "spdlog:x64-linux@1.15.1 7354200623a9c9a54fa1d583d95a04555055101fafece9cbf25a734940ee2d2b",
+  "creationInfo": {
+    "creators": [
+      "Tool: vcpkg-2025-04-16-f9b6c6917b23c1ccf16c1a9f015ebabf8f615045"
+    ],
+    "created": "2025-04-19T23:24:22Z"
+  },
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-port",
+      "relationshipType": "GENERATES",
+      "relatedSpdxElement": "SPDXRef-binary"
+    },
+    {
+      "spdxElementId": "SPDXRef-port",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-file-0"
+    },
+    {
+      "spdxElementId": "SPDXRef-port",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-file-1"
+    },
+    {
+      "spdxElementId": "SPDXRef-port",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-file-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-binary",
+      "relationshipType": "GENERATED_FROM",
+      "relatedSpdxElement": "SPDXRef-port"
+    },
+    {
+      "spdxElementId": "SPDXRef-file-0",
+      "relationshipType": "CONTAINED_BY",
+      "relatedSpdxElement": "SPDXRef-port"
+    },
+    {
+      "spdxElementId": "SPDXRef-file-1",
+      "relationshipType": "CONTAINED_BY",
+      "relatedSpdxElement": "SPDXRef-port"
+    },
+    {
+      "spdxElementId": "SPDXRef-file-1",
+      "relationshipType": "DEPENDENCY_MANIFEST_OF",
+      "relatedSpdxElement": "SPDXRef-port"
+    },
+    {
+      "spdxElementId": "SPDXRef-file-2",
+      "relationshipType": "CONTAINED_BY",
+      "relatedSpdxElement": "SPDXRef-port"
+    }
+  ],
+  "packages": [
+    {
+      "name": "spdlog",
+      "SPDXID": "SPDXRef-port",
+      "versionInfo": "1.15.1",
+      "downloadLocation": "git+https://github.com/microsoft/vcpkg@7eecd9f58a522cf0ed8f081356617dbd7b4947de",
+      "homepage": "https://github.com/gabime/spdlog",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "description": "Very fast, header-only/compiled, C++ logging library.",
+      "comment": "This is the port (recipe) consumed by vcpkg."
+    },
+    {
+      "name": "spdlog:x64-linux",
+      "SPDXID": "SPDXRef-binary",
+      "versionInfo": "7354200623a9c9a54fa1d583d95a04555055101fafece9cbf25a734940ee2d2b",
+      "downloadLocation": "NONE",
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "comment": "This is a binary package built by vcpkg."
+    },
+    {
+      "SPDXID": "SPDXRef-resource-0",
+      "name": "gabime/spdlog",
+      "downloadLocation": "git+https://github.com/gabime/spdlog@v1.15.1",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "checksums": [
+        {
+          "algorithm": "SHA512",
+          "checksumValue": "d6575b5cd53638345078a1c6a886293892359a07ee6de45e23d0c805bb33f59350f33060bce38824e09ce84525b575acdae7b94fc6e82191f5fd576f6c9252b2"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "fileName": "./usage",
+      "SPDXID": "SPDXRef-file-0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bdc67ce7fb7be263e7fdf3c57815f8f9f6142aca5d8f4da5e5597f25a6163bc6"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./vcpkg.json",
+      "SPDXID": "SPDXRef-file-1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bef45e43c4ea47d3eadc7555fdf07ed00fdd1c1bac57cdf4f5c6e272cb76ea25"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    },
+    {
+      "fileName": "./portfile.cmake",
+      "SPDXID": "SPDXRef-file-2",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "1e90edfdcdc59dfb12574ab682c046b912c2cf841c0de6f373d4cc9b0aa1a88a"
+        }
+      ],
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION"
+    }
+  ]
+}
