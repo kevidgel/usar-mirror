@@ -132,12 +132,12 @@ std::optional<std::string> get_default_font() {
 
 extern "C" int main(int argc, char *argv[]) {
 
-    int filter = 0; //TODO: ADD UI FOR FILTER SELECTION
+    int filter = 1; //TODO: ADD UI FOR FILTER SELECTION
     std::string filename  = "models/Cube/Cube.gltf";
     if (filter==0){
         filename = "models/Cube/Cube.gltf";
     }else if (filter==1){
-        filename = "models/sunglasses/scene.gltf";
+        filename = "models/ray-ban_glasses.glb";
     }
     // std::string filename = "models/ray-ban_glasses.glb";
     if (argc > 1) filename = argv[1];
@@ -247,49 +247,56 @@ extern "C" int main(int argc, char *argv[]) {
             // std::cout << "model_pos: " <<landmarks[30].x << ", " << landmarks[30].y << ", " << landmarks[30].z << std::endl;
             model_mat = glm::translate(glm::mat4(1.0f), model_pos);
             model_mat = glm::scale(model_mat, glm::vec3(0.2f));
-        }else if(filter == 1){
-
-
+        }else{
+            // model_mat = glm::translate(glm::mat4(1.0f), model_pos);
+            model_mat = glm::rotate(model_mat, glm::radians(45.0f), glm::vec3(1, 0, 0));
+            model_mat = glm::rotate(model_mat, glm::radians(90.0f), glm::vec3(0, 0, 1));
+            model_mat = glm::scale(model_mat, glm::vec3(0.01f));
         }
         // model_mat = glm::translate(model_mat, glm::vec3(0.0f, 0.0f, 0.135/2.0f));
 
-
+        // model_mat = glm::rotate(model_mat, glm::radians(45.0f), glm::vec3(1, 0, 0));
+        // model_mat = glm::rotate(model_mat, glm::radians(90.0f), glm::vec3(0, 0, 1));
+        // model_mat = glm::scale(model_mat, glm::vec3(0.01f));
+        
 
         // glm::vec3 model_pos(-3, 0, -3);
         // glm::mat4 model_mat = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
         // glm::mat4 model_mat = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
         
-        glm::mat4 proj = glm::perspective(
-            glm::radians(45.0f),  // 45 degree vertical FOV
-            640.0f / 480.0f,      // Aspect ratio (width/height)
-            0.01f,                // Near plane
-            100.0f                // Far plane
-        );
-        glm::mat4 view = glm::lookAt(
-            glm::vec3(0.0f, 0.0f, 3.0f),  // Camera position (move 3 units away from origin)
-            glm::vec3(0.0f, 0.0f, 0.0f),  // Look at the origin
-            glm::vec3(0.0f, 1.0f, 0.0f)   // Up direction (Y+ is up)
-        );
+        // glm::mat4 proj = glm::perspective(
+        //     glm::radians(45.0f),  // 45 degree vertical FOV
+        //     640.0f / 480.0f,      // Aspect ratio (width/height)
+        //     0.01f,                // Near plane
+        //     100.0f                // Far plane
+        // );
+        // glm::mat4 view = glm::lookAt(
+        //     glm::vec3(0.0f, 0.0f, 3.0f),  // Camera position (move 3 units away from origin)
+        //     glm::vec3(0.0f, 0.0f, 0.0f),  // Look at the origin
+        //     glm::vec3(0.0f, 1.0f, 0.0f)   // Up direction (Y+ is up)
+        // );
         // glm::mat4 model_mat = glm::mat4(1.0f); // Identity: no scaling, no movement
 
         
+    
+        auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
+        auto t_vec = activeCam->getExtrinsics().col(3);
+        auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+        auto K = activeCam->intrinsics.getK();
+
+        float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
+        float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
+
+        cv::Mat K_scaled = K.clone();
+        K_scaled.at<float>(0, 0) *= scale_x;  // fx
+        K_scaled.at<float>(1, 1) *= scale_y;  // fy
+        K_scaled.at<float>(0, 2) *= scale_x;  // cx
+        K_scaled.at<float>(1, 2) *= scale_y;  // cy
+
+        auto proj = getOpenGLProjectionFromOpenCV(K_scaled, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
         
-        // glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-        // auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
-        // auto t_vec = activeCam->getExtrinsics().col(3);
-        // auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
-        // auto K = activeCam->intrinsics.getK();
-
-        // float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
-        // float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
-
-        // cv::Mat K_scaled = K.clone();
-        // K_scaled.at<float>(0, 0) *= scale_x;  // fx
-        // K_scaled.at<float>(1, 1) *= scale_y;  // fy
-        // K_scaled.at<float>(0, 2) *= scale_x;  // cx
-        // K_scaled.at<float>(1, 2) *= scale_y;  // cy
-
-        // auto proj = getOpenGLProjectionFromOpenCV(K_scaled, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
+        // view = glm::mat4(1.0f); // Move the camera back a bit
+        // proj = glm::translate(glm::mat4(1.0f), glm::vec3(0.320928f, 0.0750794f, 1.57713f)); // Move the camera back a bit
         // std::cout << "width & height" << std::endl;
         // std::cout << activeCam->intrinsics.width << ", " << activeCam->intrinsics.height << std::endl;
         // std::cout << state->viewportHeight << ", " << state->viewportWidth << std::endl;
@@ -310,7 +317,9 @@ extern "C" int main(int argc, char *argv[]) {
 
         // Combine view and model
         glEnable(GL_DEPTH_TEST);
-        modelRenderer->render(proj, view, model_mat, 0.5f);     
+        modelRenderer->render(proj, view, model_mat, 1.0f); 
+        auto mvp = proj * view * model_mat;   
+        printMat4(mvp, "mvp");
 
         // gestureControlPipeline->render();
         ImGui_ImplOpenGL3_NewFrame();

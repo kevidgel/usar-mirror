@@ -108,6 +108,65 @@ namespace UsArMirror {
 
         drawModel(vaoAndEbos_, model_);
     }
+
+    void ModelRenderer::render_ztesting(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat,
+      float opacity,
+      GLuint middleDepthTex,
+      glm::mat4 middleView,
+      glm::mat4 middleProj,
+      int depthWidth,
+      int depthHeight) {
+
+      if (!shader_.pid) {
+        std::cerr << "Shader not initialized!\n";
+        return;
+      }
+      if (vaoAndEbos_.first == 0) {
+        std::cerr << "VAO not initialized!\n";
+        return;
+      }
+      if (model_.nodes.empty()) {
+        std::cerr << "Model is empty!\n";
+        return;
+      }
+
+      glViewport(0, 0, state->viewportWidth * state->viewportScaling,
+      state->viewportHeight * state->viewportScaling);
+
+      glUseProgram(shader_.pid);
+
+      // Bind texture to unit 0
+      glActiveTexture(GL_TEXTURE0);
+      glBindTexture(GL_TEXTURE_2D, modelTexture_);
+      glUniform1i(glGetUniformLocation(shader_.pid, "tex"), 0);
+
+      // Bind middle depth texture to unit 1
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, middleDepthTex);
+      glUniform1i(glGetUniformLocation(shader_.pid, "depth_tex_middle"), 1);
+
+      // Compute MVP for current camera
+      glm::mat4 mvp = proj * view * model_mat;
+      glUniformMatrix4fv(glGetUniformLocation(shader_.pid, "MVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+      // Pass lighting uniforms
+      glUniform3fv(glGetUniformLocation(shader_.pid, "sun_position"), 1, &sun_position[0]);
+      glUniform3fv(glGetUniformLocation(shader_.pid, "sun_color"), 1, &sun_color[0]);
+
+      // Opacity control
+      glUniform1f(glGetUniformLocation(shader_.pid, "opacity"), opacity);
+
+      // Pass middle camera's projection/view for reprojection
+      glUniformMatrix4fv(glGetUniformLocation(shader_.pid, "middle_proj"), 1, GL_FALSE, glm::value_ptr(middleProj));
+      glUniformMatrix4fv(glGetUniformLocation(shader_.pid, "middle_view"), 1, GL_FALSE, glm::value_ptr(middleView));
+
+      // Pass resolution of the depth map (in case you need it later)
+      glUniform2f(glGetUniformLocation(shader_.pid, "depth_resolution"), static_cast<float>(depthWidth), static_cast<float>(depthHeight));
+
+      // Draw the model
+      drawModel(vaoAndEbos_, model_);
+    }
+
     
     void ModelRenderer::cleanup() {
         glDeleteVertexArrays(1, &vaoAndEbos_.first);
@@ -124,7 +183,17 @@ namespace UsArMirror {
           std::cerr << filename <<"File does not exist!\n";
       }
     
-      auto res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+      std::filesystem::path path(filename);
+      auto ext = filename.extension();
+      bool ok;
+      if (ext == ".gltf") {
+        ok = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+      } else if (ext == ".glb") {
+        ok = loader.LoadBinaryFromFile(&model, &err, &warn, filename);
+      } else {
+        throw std::runtime_error("Unsupported file format. Only .gltf and .glb are supported.");
+      }
+      auto res = loader.LoadBinaryFromFile(&model, &err, &warn, filename);
 
       if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
@@ -148,6 +217,7 @@ namespace UsArMirror {
       return res;
     }
     
+    // MODIFIED FROM ORIGINAL
     void ModelRenderer::bindMesh(std::map<int, GLuint>& vbos,
                   tinygltf::Model &model, tinygltf::Mesh &mesh) {
       for (size_t i = 0; i < model.bufferViews.size(); ++i) {

@@ -20,6 +20,13 @@ public:
     // Render a model
     void render(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat, float opacity);
 
+    void render_ztesting(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat,
+        float opacity,
+        GLuint middleDepthTex,
+        glm::mat4 middleView,
+        glm::mat4 middleProj,
+        int depthWidth,
+        int depthHeight);
     // Cleanup resources
     void cleanup();
 

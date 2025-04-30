@@ -158,6 +158,7 @@ void CameraInput::render() {
             GL_RGB, GL_UNSIGNED_BYTE, frame.data);
 
         // Optionally disable depth test if you don't want background to write depth
+        glBindTexture(GL_TEXTURE_2D, 0);
         glDisable(GL_DEPTH_TEST);
 
         background.render(textureId, state->viewportWidth, state->viewportHeight);
