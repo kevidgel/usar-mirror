@@ -111,7 +111,7 @@ private:
 
     std::vector<cv::Point3f> landmark3D;
     std::mutex landmarkMutex;
-    // std::mutex extrinsicsMutex;
+    std::mutex extrinsicsMutex;
 
     BackgroundShader background;
 

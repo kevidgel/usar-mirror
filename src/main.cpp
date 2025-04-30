@@ -79,41 +79,6 @@ glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) 
     return view;
 }
 
-// glm::mat4 getViewMatrixFromExtrinsics(const cv::Mat& R_cv, const cv::Mat& t_cv) {
-//     glm::mat4 view(1.0f);
-
-//     // Rotation inverse = transpose
-//     view[0][0] =  R_cv.at<float>(0,0);
-//     view[0][1] =  R_cv.at<float>(1,0);
-//     view[0][2] =  R_cv.at<float>(2,0);
-
-//     view[1][0] =  R_cv.at<float>(0,1);
-//     view[1][1] =  R_cv.at<float>(1,1);
-//     view[1][2] =  R_cv.at<float>(2,1);
-
-//     view[2][0] =  R_cv.at<float>(0,2);
-//     view[2][1] =  R_cv.at<float>(1,2);
-//     view[2][2] =  R_cv.at<float>(2,2);
-
-//     // -R^T * t
-//     view[3][0] = -(R_cv.at<float>(0,0) * t_cv.at<float>(0) +
-//                    R_cv.at<float>(0,1) * t_cv.at<float>(1) +
-//                    R_cv.at<float>(0,2) * t_cv.at<float>(2));
-//     view[3][1] = -(R_cv.at<float>(1,0) * t_cv.at<float>(0) +
-//                    R_cv.at<float>(1,1) * t_cv.at<float>(1) +
-//                    R_cv.at<float>(1,2) * t_cv.at<float>(2));
-//     view[3][2] = -(R_cv.at<float>(2,0) * t_cv.at<float>(0) +
-//                    R_cv.at<float>(2,1) * t_cv.at<float>(1) +
-//                    R_cv.at<float>(2,2) * t_cv.at<float>(2));
-
-//     return view;
-// }
-
-float computeVerticalFOV(const cv::Mat& K, int imageHeight) {
-    float fy = K.at<float>(1, 1);
-    return glm::degrees(2.0f * std::atan(static_cast<float>(imageHeight) / (2.0f * fy)));
-}
-
 void printMat4(const glm::mat4& mat, const std::string& name) {
     std::cout << name << ":\n";
     for (int row = 0; row < 4; ++row) {
@@ -124,6 +89,19 @@ void printMat4(const glm::mat4& mat, const std::string& name) {
         std::cout << "]\n";
     }
 }
+
+// void drawDebugPoint(glm::vec3 pos, glm::mat4 view, glm::mat4 proj) {
+//     glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+//     model = glm::scale(model, glm::vec3(0.01f));  // small cube
+
+//     glm::mat4 mvp = proj * view * model;
+
+//     glUseProgram(debugShaderProgram);  // you need a simple shader
+//     glUniformMatrix4fv(glGetUniformLocation(debugShaderProgram, "uMVP"), 1, GL_FALSE, &mvp[0][0]);
+
+//     glBindVertexArray(debugCubeVAO);  // a VAO for a cube (or sphere)
+//     glDrawElements(GL_TRIANGLES, , GL_UNSIGNED_INT, 0);
+// }
 
 
 std::optional<std::string> get_default_font() {
@@ -153,7 +131,14 @@ std::optional<std::string> get_default_font() {
 }
 
 extern "C" int main(int argc, char *argv[]) {
-    std::string filename = "models/Cube/Cube.gltf";
+
+    int filter = 0; //TODO: ADD UI FOR FILTER SELECTION
+    std::string filename  = "models/Cube/Cube.gltf";
+    if (filter==0){
+        filename = "models/Cube/Cube.gltf";
+    }else if (filter==1){
+        filename = "models/sunglasses/scene.gltf";
+    }
     // std::string filename = "models/ray-ban_glasses.glb";
     if (argc > 1) filename = argv[1];
 
@@ -190,7 +175,7 @@ extern "C" int main(int argc, char *argv[]) {
     spdlog::info("GL_RENDERER: {}", reinterpret_cast<const char *>(glRenderer));
 
     glEnable(GL_DEBUG_OUTPUT);
-    // glEnable(GL_FRAMEBUFFER_SRGB); //TODO: check if this is needed
+    // glEnable(GL_FRAMEBUFFER_SRGB);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -217,17 +202,6 @@ extern "C" int main(int argc, char *argv[]) {
         spdlog::warn("Could not find a default font, using the ImGui default font.");
     }
 
-    // cv::dnn::Net faceNet = cv::dnn::readNetFromCaffe(
-    //     "deploy.prototxt",
-    //     "res10_300x300_ssd_iter_140000.caffemodel");
-    
-    // auto facemark = cv::face::FacemarkLBF::create();
-    // facemark->loadModel("lbfmodel.yaml");
-    
-    // spdlog::info("Loaded FaceNet and Facemark globally.");
-    
-    
-
     // Launch tasks
     auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6);
     auto cameraInput = std::make_shared<CameraInput>(state, 0);
@@ -253,7 +227,7 @@ extern "C" int main(int argc, char *argv[]) {
             state->flags.showDebug = false;
         }
         
-        auto activeCam = depthCameraInput;
+        auto activeCam = cameraInput; // TODO: ADD UI TO CHOOSE ACTIVE CAMERA
 
         activeCam->render();
 
@@ -261,14 +235,22 @@ extern "C" int main(int argc, char *argv[]) {
 
         std::vector<cv::Point3f> landmarks;
         depthCameraInput->getLandmarks3D(landmarks);
-        if (landmarks.size() > 0) {
-            // model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
-            model_pos = glm::vec3(landmarks[0].x, -landmarks[0].y, -landmarks[0].z);
+
+        auto model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));//DEFAULT
+
+        if (filter == 0){ //LOCATE CUBE IN FRONT OF NOSE
+            if (landmarks.size() > 0) {
+                // model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+                model_pos = glm::vec3(landmarks[30].x, landmarks[30].y, landmarks[30].z);
+            }
+            // glm::vec3 model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+            // std::cout << "model_pos: " <<landmarks[30].x << ", " << landmarks[30].y << ", " << landmarks[30].z << std::endl;
+            model_mat = glm::translate(glm::mat4(1.0f), model_pos);
+            model_mat = glm::scale(model_mat, glm::vec3(0.2f));
+        }else if(filter == 1){
+
+
         }
-        // glm::vec3 model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
-        std::cout << "model_pos: " <<landmarks[0].x << ", " << landmarks[0].y << ", " << landmarks[0].z << std::endl;
-        auto model_mat = glm::translate(glm::mat4(1.0f), model_pos);
-        model_mat = glm::scale(model_mat, glm::vec3(0.2f));
         // model_mat = glm::translate(model_mat, glm::vec3(0.0f, 0.0f, 0.135/2.0f));
 
 
@@ -277,37 +259,37 @@ extern "C" int main(int argc, char *argv[]) {
         // glm::mat4 model_mat = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
         // glm::mat4 model_mat = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
         
-        // glm::mat4 proj = glm::perspective(
-        //     glm::radians(45.0f),  // 45 degree vertical FOV
-        //     640.0f / 480.0f,      // Aspect ratio (width/height)
-        //     0.01f,                // Near plane
-        //     100.0f                // Far plane
-        // );
-        // glm::mat4 view = glm::lookAt(
-        //     glm::vec3(0.0f, 0.0f, 3.0f),  // Camera position (move 3 units away from origin)
-        //     glm::vec3(0.0f, 0.0f, 0.0f),  // Look at the origin
-        //     glm::vec3(0.0f, 1.0f, 0.0f)   // Up direction (Y+ is up)
-        // );
+        glm::mat4 proj = glm::perspective(
+            glm::radians(45.0f),  // 45 degree vertical FOV
+            640.0f / 480.0f,      // Aspect ratio (width/height)
+            0.01f,                // Near plane
+            100.0f                // Far plane
+        );
+        glm::mat4 view = glm::lookAt(
+            glm::vec3(0.0f, 0.0f, 3.0f),  // Camera position (move 3 units away from origin)
+            glm::vec3(0.0f, 0.0f, 0.0f),  // Look at the origin
+            glm::vec3(0.0f, 1.0f, 0.0f)   // Up direction (Y+ is up)
+        );
         // glm::mat4 model_mat = glm::mat4(1.0f); // Identity: no scaling, no movement
 
         
         
         // glm::mat4 model_mat = glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-        auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
-        auto t_vec = activeCam->getExtrinsics().col(3);
-        auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
-        auto K = activeCam->intrinsics.getK();
+        // auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
+        // auto t_vec = activeCam->getExtrinsics().col(3);
+        // auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+        // auto K = activeCam->intrinsics.getK();
 
-        float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
-        float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
+        // float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
+        // float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
 
-        cv::Mat K_scaled = K.clone();
-        K_scaled.at<float>(0, 0) *= scale_x;  // fx
-        K_scaled.at<float>(1, 1) *= scale_y;  // fy
-        K_scaled.at<float>(0, 2) *= scale_x;  // cx
-        K_scaled.at<float>(1, 2) *= scale_y;  // cy
+        // cv::Mat K_scaled = K.clone();
+        // K_scaled.at<float>(0, 0) *= scale_x;  // fx
+        // K_scaled.at<float>(1, 1) *= scale_y;  // fy
+        // K_scaled.at<float>(0, 2) *= scale_x;  // cx
+        // K_scaled.at<float>(1, 2) *= scale_y;  // cy
 
-        auto proj = getOpenGLProjectionFromOpenCV(K_scaled, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
+        // auto proj = getOpenGLProjectionFromOpenCV(K_scaled, state->viewportWidth, state->viewportHeight, 0.01f, 1000.0f);
         // std::cout << "width & height" << std::endl;
         // std::cout << activeCam->intrinsics.width << ", " << activeCam->intrinsics.height << std::endl;
         // std::cout << state->viewportHeight << ", " << state->viewportWidth << std::endl;
@@ -327,7 +309,6 @@ extern "C" int main(int argc, char *argv[]) {
         // printMat4(model_mat, "model");
 
         // Combine view and model
-    
         glEnable(GL_DEPTH_TEST);
         modelRenderer->render(proj, view, model_mat, 0.5f);     
 

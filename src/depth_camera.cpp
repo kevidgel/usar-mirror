@@ -10,6 +10,10 @@
 #include <thread>
 #include <mutex>
 
+#include <glm/vec3.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace UsArMirror {
 
 DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state, int idx)
@@ -100,6 +104,16 @@ void DepthCameraInput::tagLoop() {
     }
 }
 
+glm::mat4 cvMat4ToGlm(const cv::Mat& mat) {
+    glm::mat4 result(1.0f);
+    for (int col = 0; col < 4; ++col) {
+        for (int row = 0; row < 4; ++row) {
+            result[col][row] = mat.at<float>(row, col);
+        }
+    }
+    return result;
+}
+
 void DepthCameraInput::detectionLoop() {
     while (running) {
         cv::Mat currentFrame, depthMat;
@@ -135,10 +149,21 @@ void DepthCameraInput::detectionLoop() {
         std::vector<std::vector<cv::Point2f>> landmarks;
         if (facemark->fit(currentFrame, faces, landmarks) && !landmarks.empty()) {
             std::vector<cv::Point3f> points3D;
-            auto intr = impl->pipe.get_active_profile()
-                            .get_stream(RS2_STREAM_COLOR)
-                            .as<rs2::video_stream_profile>()
-                            .get_intrinsics();
+
+            // Retrieve RealSense intrinsics
+            // auto intr = pip->get_active_profile()
+            //                 .get_stream(RS2_STREAM_COLOR)
+            //                 .as<rs2::video_stream_profile>()
+            //                 .get_intrinsics();
+            auto intr = intrinsics;
+
+            // Convert extrinsicsMatrix (cv::Mat) to glm::mat4 once
+            glm::mat4 extrinsics;
+            {
+                std::lock_guard lock(extrinsicsMutex);
+                extrinsics = cvMat4ToGlm(this->extrinsicsMatrix);
+            }
+
 
             for (const auto& pt : landmarks[0]) {
                 int x = static_cast<int>(pt.x);
@@ -149,10 +174,13 @@ void DepthCameraInput::detectionLoop() {
                 if (d == 0) continue;
 
                 float depth_m = d * 0.001f;
-                float px = (x - intr.ppx) / intr.fx;
-                float py = (y - intr.ppy) / intr.fy;
+                float px = (x - intr.cx) / intr.fx;
+                float py = (y - intr.cy) / intr.fy;
 
-                points3D.emplace_back(cv::Point3f(px * depth_m, py * depth_m, depth_m));
+                glm::vec4 cam_point(px * depth_m, py * depth_m, depth_m, 1.0f);
+                glm::vec4 world_point = inverse(extrinsics) * cam_point;
+
+                points3D.emplace_back(cv::Point3f(world_point.x, world_point.y, world_point.z));
             }
 
             {
@@ -168,6 +196,8 @@ void DepthCameraInput::detectionLoop() {
         // spdlog::info("Detect face took {} µs", duration);
     }
 }
+
+
 
 bool DepthCameraInput::getFrame(cv::Mat& outputFrame) {
     std::lock_guard lock(frameMutex);
@@ -245,13 +275,16 @@ void DepthCameraInput::updateExtrinsicsFromAruco() {
     if (!rvecs.empty()) {
         cv::Mat R_cv;
         cv::Rodrigues(rvecs[0], R_cv);
-
+    
         cv::Mat extrinsic = cv::Mat::eye(4, 4, CV_32F);
         R_cv.convertTo(extrinsic(cv::Rect(0, 0, 3, 3)), CV_32F);
         cv::Mat(tvecs[0]).convertTo(extrinsic(cv::Rect(3, 0, 1, 3)), CV_32F);
-
-        extrinsicsMatrix = extrinsic;
-
+    
+        {
+            std::lock_guard<std::mutex> lock(extrinsicsMutex);  // 🔒
+            extrinsicsMatrix = extrinsic.clone();  // defensive copy in case someone is reading
+        }
+    
         // spdlog::info("ArUco ID: {}", ids[0]);
     }
 }

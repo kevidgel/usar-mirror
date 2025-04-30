@@ -1,6 +1,7 @@
 // model_renderer.cpp
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 
 #include "model_renderer.hpp"
 #include <iostream>
@@ -13,6 +14,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm> // for std::transform
 // #include "tiny_gltf_loader.cpp"
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
@@ -20,7 +22,7 @@
 namespace UsArMirror {
 
     ModelRenderer::ModelRenderer(const std::shared_ptr<State>& state,const std::string& filename)
-        : modelTexture_(0), state(state) {
+        : state(state) {
         std::cout << "Loading model: " << filename << std::endl;
         
         initShader();
@@ -85,7 +87,6 @@ namespace UsArMirror {
             std::cerr << "Model is empty!\n";
             return;
         }
-      
         glViewport(0, 0, state->viewportWidth * state->viewportScaling, state->viewportHeight * state->viewportScaling);
 
         glUseProgram(shader_.pid);
@@ -117,8 +118,14 @@ namespace UsArMirror {
       tinygltf::TinyGLTF loader;
       std::string err;
       std::string warn;
+
+      std::cout << "Trying to load: " << filename << std::endl;
+      if (!std::filesystem::exists(filename)) {
+          std::cerr << filename <<"File does not exist!\n";
+      }
     
-      bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+      auto res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+
       if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
       }
@@ -131,8 +138,13 @@ namespace UsArMirror {
         std::cout << "Failed to load glTF: " << filename << std::endl;
       else
         std::cout << "Loaded glTF: " << filename << std::endl;
-    
-      dbgModel(model);
+
+      for (size_t i = 0; i < model.images.size(); ++i) {
+        const auto& image = model.images[i];
+        std::cout << "Image[" << i << "] URI = " << image.uri << std::endl;
+      }
+      
+      // dbgModel(model);
       return res;
     }
     
@@ -238,6 +250,8 @@ namespace UsArMirror {
     
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
                          format, type, &image.image.at(0));
+
+            modelTexture_ = texid; 
           }
         }
       }
@@ -287,22 +301,27 @@ namespace UsArMirror {
                                           stride, BUFFER_OFFSET(accessor.byteOffset));
                 }
                 if (!model.textures.empty()) {
-                    const auto &tex = model.textures[0];
-                    if (tex.source > -1) {
-                        glGenTextures(1, &modelTexture_);
-                        const auto &image = model.images[tex.source];
-                        glBindTexture(GL_TEXTURE_2D, modelTexture_);
-                        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    
-                    // t = (image.component == 1) ? GL_RED : (image.component == 2) ? GL_RG : (image.component == 3) ? GL_RGB : GL_RGBA;
-                    //     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
-                    //                  format, GL_UNSIGNED_BYTE, image.image.data());
-                    }
-                }
+                  const auto &tex = model.textures[0];
+                  if (tex.source > -1) {
+                      glGenTextures(1, &modelTexture_);
+                      const auto &image = model.images[tex.source];
+                      glBindTexture(GL_TEXTURE_2D, modelTexture_);
+                      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+              
+                      GLenum format = (image.component == 1) ? GL_RED :
+                                      (image.component == 2) ? GL_RG :
+                                      (image.component == 3) ? GL_RGB : GL_RGBA;
+              
+                      GLenum type = (image.bits == 16) ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE;
+              
+                      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
+                                   format, type, image.image.data()); // ✅ <-- This is critical!
+                  }
+              }
             }
         }
     

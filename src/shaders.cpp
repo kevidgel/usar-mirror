@@ -26,7 +26,8 @@ std::string FragmentShaderCode = R"(
 			discard;
 	
 		float alpha = texColor.a * opacity;  // Combine texture alpha and uniform opacity
-		color = vec4(texColor.rgb * (0.3 + 0.7 * lum) * sun_color, alpha);
+		// color = vec4(texColor.rgb * (0.3 + 0.7 * lum) * sun_color, alpha);
+        color = vec4(texColor.rgb, alpha);
 	}
 	)";
 	

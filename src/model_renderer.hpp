@@ -29,7 +29,7 @@ private:
     tinygltf::Model model_;
     Shaders shader_;
     std::pair<GLuint, std::map<int, GLuint>> vaoAndEbos_;
-    GLuint modelTexture_ = 0;
+    GLuint modelTexture_;
     // GLuint modelTexture = 0; // Global model texture
     GLuint MVP_u;
     GLuint sun_position_u;
