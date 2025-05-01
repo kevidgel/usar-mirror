@@ -1,29 +1,27 @@
 #pragma once
 
-#include <opencv2/opencv.hpp>
 #include <glad/glad.h>
-#include <memory>
-#include <thread>
-#include <mutex>
-#include <optional>
 #include <librealsense2/rs.hpp>
+#include <memory>
+#include <mutex>
+#include <opencv2/opencv.hpp>
+#include <optional>
+#include <thread>
 
-#include <vector>
 #include <opencv2/core.hpp>
 #include <opencv2/dnn.hpp>
+#include <vector>
 
-#include "common.hpp"
 #include "background_shader.h"
+#include "common.hpp"
 
-#include <vector>
 #include <atomic>
+#include <opencv2/aruco.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/dnn.hpp>
-#include <opencv2/objdetect.hpp>
 #include <opencv2/face.hpp>
-#include <opencv2/aruco.hpp>
-
-
+#include <opencv2/objdetect.hpp>
+#include <vector>
 
 namespace UsArMirror {
 
@@ -35,32 +33,29 @@ struct DepthCameraInputImpl {
     rs2::frame depth_frame;
 };
 
-
-
 class DepthCameraInput {
-public:
-    DepthCameraInput(const std::shared_ptr<State>& state);
+  public:
+    DepthCameraInput(const std::shared_ptr<State> &state);
     ~DepthCameraInput();
 
-    bool getFrame(cv::Mat& outputFrame);
+    bool getFrame(cv::Mat &outputFrame);
     void render();
 
     // int width, height;
     cv::Mat getLastColorFrame() const;
     rs2::depth_frame getDepth();
 
-
     Intrinsics intrinsics = Intrinsics{
-        .fx = 148.22530571f,
-        .fy = 149.44816246f,
-        .cx = 291.64137733f,
-        .cy = 216.22790337,
+        .fx = 1.36714743e+03f,
+        .fy = 1.34790890e+03f,
+        .cx = 3.28297800e+02f,
+        .cy = 2.42004385e+02f,
         .width = 640,
         .height = 480,
-        .dist = {-1.43234225e-02f, -5.47372135e-04f, 4.36393052e-04f, -3.06948268e-04f, 5.58948300e-05f}
+        .dist = {-1.59267188e+00, 2.73637462e+01, -4.13155799e-02, -2.57490870e-02, -1.89969469e+02}
     };
 
-    void getLandmarks3D(std::vector<cv::Point3f>& out);
+    void getLandmarks3D(std::vector<cv::Point3f> &out);
 
     // cv::Mat getK() const;
     // cv::Mat getDist() const;
@@ -73,13 +68,12 @@ public:
     int width = 640;
     int height = 480;
 
-private:
+  private:
     void createGlTexture();
     void captureLoop();
     void detectionLoop();
     void tagLoop();
     void updateExtrinsicsFromAruco();
-
 
     cv::Mat extrinsicsMatrix = cv::Mat::eye(4, 4, CV_32F);
 
@@ -117,11 +111,9 @@ private:
 
     BackgroundShader background;
 
-
     cv::Ptr<cv::aruco::Dictionary> arucoDict;
 
-    float tag_size_meters = 0.135f;  // Set your actual tag size here
+    float tag_size_meters = 0.135f; // Set your actual tag size here
 };
 
 } // namespace UsArMirror
-

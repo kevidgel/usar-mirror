@@ -87,8 +87,8 @@ void DepthCameraInput::captureLoop() {
             if (depth) {
                 std::lock_guard lock(frameMutex);
                 depth_frame = depth;
-                flip(cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
-                                   (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone(), depthMat, 1);
+                depthMat = cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
+                                   (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone();
                 // cv::flip(depth, depth_frame, 1);
             }
         }
@@ -125,8 +125,7 @@ void DepthCameraInput::detectionLoop() {
             std::lock_guard lock(frameMutex);
             if (frame.empty() || !depth_frame) continue;
             currentFrame = frame.clone();
-            // depthMat = cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
-            //                    (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone();
+            // cv::flip(currentFrame, currentFrame, 1);
             depthMat = this->depthMat.clone();
         }
 

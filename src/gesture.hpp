@@ -15,7 +15,8 @@ namespace UsArMirror {
  */
 class GestureControlPipeline {
   public:
-    explicit GestureControlPipeline(const std::shared_ptr<State>& state, const std::shared_ptr<DepthCameraInput> &camera);
+    explicit GestureControlPipeline(const std::shared_ptr<State> &state,
+                                    const std::shared_ptr<DepthCameraInput> &camera);
     ~GestureControlPipeline();
 
     void render();

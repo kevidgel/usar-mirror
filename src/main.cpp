@@ -137,11 +137,12 @@ void processInputs(const std::shared_ptr<State>& state) {
             const auto& val = o.value();
             InputEvent event = o->val;
 
+            // TODO: Change
             if (event == InputEvent::LEFT_SWIPE) {
-                state->activeCameraIdx = (state->activeCameraIdx + 2) % 3;
+                state->activeCameraIdx = 0;
             }
             if (event == InputEvent::RIGHT_SWIPE) {
-                state->activeCameraIdx = (state->activeCameraIdx + 1) % 3;
+                state->activeCameraIdx = 1;
             }
         }
     }
@@ -152,7 +153,7 @@ extern "C" int main(int argc, char *argv[]) {
     int filter = 0; //TODO: ADD UI FOR FILTER SELECTION
     std::string filename  = "models/Cube/Cube.gltf";
     if (filter==0){
-        filename = "models/glasses/scene.gltf";
+        // filename = "models/glasses/scene.gltf";
         filename = "models/bruh.glb";
     }else if (filter==1){
         filename = "models/ray-ban_glasses.glb";
@@ -280,6 +281,15 @@ extern "C" int main(int argc, char *argv[]) {
             model_mat = glm::rotate(model_mat, glm::radians(45.0f), glm::vec3(1, 0, 0));
             model_mat = glm::rotate(model_mat, glm::radians(90.0f), glm::vec3(0, 0, 1));
             model_mat = glm::scale(model_mat, glm::vec3(0.01f));
+            if (landmarks.size() > 0) {
+                // model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+                model_pos = glm::vec3(landmarks[30].x, landmarks[30].y, landmarks[30].z);
+            }
+            // glm::vec3 model_pos = glm::vec3(landmarks[0].x, landmarks[0].y, landmarks[0].z);
+            // std::cout << "model_pos: " <<landmarks[30].x << ", " << landmarks[30].y << ", " << landmarks[30].z << std::endl;
+            model_mat = glm::translate(glm::mat4(1.0f), model_pos);
+            model_mat = glm::scale(model_mat, glm::vec3(0.2f));
+
         }
         // model_mat = glm::translate(model_mat, glm::vec3(0.0f, 0.0f, 0.135/2.0f));
 

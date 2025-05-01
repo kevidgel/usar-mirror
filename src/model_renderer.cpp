@@ -95,22 +95,22 @@ void ModelRenderer::render(glm::mat4 proj, glm::mat4 view, glm::mat4 model_mat, 
     // glm::mat4 trans = glm::translate(glm::mat4(1.0f), model_pos);
     // model_mat = trans * model_rot * model_mat;
 
-    glm::mat4 testModel = glm::identity<glm::mat4>();
-
-    glm::mat4 testView = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), // eye
-                                     glm::vec3(0.0f, 0.0f, 0.0f), // center
-                                     glm::vec3(0.0f, 1.0f, 0.0f)  // up
-    );
-
-    // PROJECTION: 45° vertical FOV, [0.1,100] depth
-    float aspect = float(state->viewportWidth) / float(state->viewportHeight);
-    glm::mat4 testProj = glm::perspective(glm::radians(45.0f), aspect,
-                                          0.1f,  // near plane
-                                          100.0f // far plane
-    );
-
-    glm::mat4 mvp = testProj * testView * testModel;
-    mvp = proj * view * model_mat;
+    // glm::mat4 testModel = glm::identity<glm::mat4>();
+    //
+    // glm::mat4 testView = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), // eye
+    //                                  glm::vec3(0.0f, 0.0f, 0.0f), // center
+    //                                  glm::vec3(0.0f, 1.0f, 0.0f)  // up
+    // );
+    //
+    // // PROJECTION: 45° vertical FOV, [0.1,100] depth
+    // float aspect = float(state->viewportWidth) / float(state->viewportHeight);
+    // glm::mat4 testProj = glm::perspective(glm::radians(45.0f), aspect,
+    //                                       0.1f,  // near plane
+    //                                       100.0f // far plane
+    // );
+    //
+    // glm::mat4 mvp = testProj * testView * testModel;
+    auto mvp = proj * view * model_mat;
 
     glUniformMatrix4fv(MVP_u, 1, GL_FALSE, &mvp[0][0]);
     glUniform3fv(sun_position_u, 1, &sun_position[0]);
