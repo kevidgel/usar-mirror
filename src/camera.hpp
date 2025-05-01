@@ -16,7 +16,6 @@
 namespace UsArMirror {
 class CameraInput {
   public:
-    CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode);
     CameraInput(const std::shared_ptr<State>& state, int idx);
     ~CameraInput();
 

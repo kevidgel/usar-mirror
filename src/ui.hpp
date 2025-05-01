@@ -60,10 +60,7 @@ class ArrowButton {
     }
 
     void detectClick(glm::vec2 pos) {
-        // Map to imgui coordinates
-        glm::vec2 imguiCoords = {(state->viewportWidth - pos.x) * state->viewportScaling,
-                                 pos.y * state->viewportScaling};
-
+        auto imguiCoords = pos;
         glm::vec2 pp1 = {p1.x, p1.y};
         glm::vec2 pp2 = {p2.x, p2.y};
         glm::vec2 pp3 = {p3.x, p3.y};

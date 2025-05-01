@@ -20,6 +20,8 @@ Arduino::~Arduino() {
     }
 }
 
+void millisleep(unsigned int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
+
 void Arduino::serialLoop() {
     const char *portname = "/dev/ttyUSB0"; // Change this!
     int fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
@@ -31,15 +33,11 @@ void Arduino::serialLoop() {
         spdlog::info("Successfully opened {}", portname);
     }
 
-            spdlog::info("C");
-
-    struct termios tty;
+    termios tty;
     if (tcgetattr(fd, &tty) != 0) {
         spdlog::error("Error tcgetattr", portname);
         return;
     }
-
-            spdlog::info("B");
 
     cfsetospeed(&tty, B9600);
     cfsetispeed(&tty, B9600);
@@ -49,7 +47,7 @@ void Arduino::serialLoop() {
     tty.c_lflag = 0;                            // no signaling chars, no echo
     tty.c_oflag = 0;                            // no remapping, no delays
     tty.c_cc[VMIN] = 1;                         // read doesn't block
-    tty.c_cc[VTIME] = 5;                        // 0.5 seconds read timeout
+    tty.c_cc[VTIME] = 1;                        // 0.1 seconds read timeout
 
     tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
     tty.c_cflag |= (CLOCAL | CREAD);        // ignore modem controls
@@ -61,11 +59,10 @@ void Arduino::serialLoop() {
         spdlog::error("Error from tcsetattr");
         return;
     }
-            spdlog::info("A");
 
     // Write to Arduino
     while (running) {
-        const std::string msg = "u 100\n";
+        const std::string msg = "Lu 500\n";
         write(fd, msg.data(), msg.length());
 
         // Read response
@@ -75,7 +72,7 @@ void Arduino::serialLoop() {
             spdlog::info("Read: {}", std::string(buf, n));
         }
 
-        sleep(1);
+        millisleep(1000);
     }
 
     close(fd);

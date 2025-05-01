@@ -31,6 +31,8 @@ struct State {
             bool renderHandCircles = true;
         } gesture;
     } flags;
+
+    int activeCameraIdx = 1;
     
     /// Event queue
     RWDeque<InputEvent> inputEventQueue;

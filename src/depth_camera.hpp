@@ -39,7 +39,7 @@ struct DepthCameraInputImpl {
 
 class DepthCameraInput {
 public:
-    DepthCameraInput(const std::shared_ptr<State>& state, int idx);
+    DepthCameraInput(const std::shared_ptr<State>& state);
     ~DepthCameraInput();
 
     bool getFrame(cv::Mat& outputFrame);
@@ -70,6 +70,9 @@ public:
         return extrinsicsMatrix.clone();
     }
 
+    int width = 640;
+    int height = 480;
+
 private:
     void createGlTexture();
     void captureLoop();
@@ -77,8 +80,6 @@ private:
     void tagLoop();
     void updateExtrinsicsFromAruco();
 
-    int width = 640;
-    int height = 480;
 
     cv::Mat extrinsicsMatrix = cv::Mat::eye(4, 4, CV_32F);
 
@@ -93,6 +94,7 @@ private:
     // Frame data
     mutable std::mutex frameMutex;
     cv::Mat frame;
+    cv::Mat depthMat;
     rs2::depth_frame depth_frame;
 
     // Threads

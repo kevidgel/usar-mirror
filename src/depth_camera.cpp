@@ -16,7 +16,7 @@
 
 namespace UsArMirror {
 
-DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state, int idx)
+DepthCameraInput::DepthCameraInput(const std::shared_ptr<State>& state)
     : state(state), running(true), textureId(1), depth_frame(rs2::frame()) {
     try {
         impl = std::make_unique<DepthCameraInputImpl>();
@@ -80,12 +80,16 @@ void DepthCameraInput::captureLoop() {
                 const uint8_t* data = reinterpret_cast<const uint8_t*>(color.get_data());
                 cv::Mat raw(color.get_height(), color.get_width(), CV_8UC3, (void*)data, cv::Mat::AUTO_STEP);
                 std::lock_guard lock(frameMutex);
-                frame = raw.clone();
+                // frame = raw.clone();
+                cv::flip(raw, frame, 1);
             }
 
             if (depth) {
                 std::lock_guard lock(frameMutex);
                 depth_frame = depth;
+                flip(cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
+                                   (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone(), depthMat, 1);
+                // cv::flip(depth, depth_frame, 1);
             }
         }
 
@@ -121,8 +125,9 @@ void DepthCameraInput::detectionLoop() {
             std::lock_guard lock(frameMutex);
             if (frame.empty() || !depth_frame) continue;
             currentFrame = frame.clone();
-            depthMat = cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
-                               (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone();
+            // depthMat = cv::Mat(depth_frame.get_height(), depth_frame.get_width(), CV_16UC1,
+            //                    (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP).clone();
+            depthMat = this->depthMat.clone();
         }
 
         auto start = std::chrono::high_resolution_clock::now();

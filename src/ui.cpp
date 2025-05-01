@@ -9,8 +9,8 @@
 namespace UsArMirror {
 UserInterface::UserInterface(const std::shared_ptr<State> &state,
                              const std::shared_ptr<GestureControlPipeline> &gesture)
-    : state(state), gesture(gesture), leftButton(state, ImVec2(300, state->viewportHeight - 300), 150.f, false),
-      rightButton(state, ImVec2(state->viewportWidth - 300, state->viewportHeight - 300), 150.f, true),
+    : state(state), gesture(gesture), leftButton(state, ImVec2(500, state->viewportHeight - 300), 150.f, false),
+      rightButton(state, ImVec2(state->viewportWidth - 500, state->viewportHeight - 300), 150.f, true),
       centerButton(state, ImVec2(state->viewportWidth / 2, state->viewportHeight - 250), 400.f, 150.f){}
 
 void UserInterface::menuBar() {
@@ -59,8 +59,8 @@ void UserInterface::render() {
 
     // LR button clicks and click detection
     {
-        leftButton.detectClick(gesture->getHand(true));
-        rightButton.detectClick(gesture->getHand(false));
+        leftButton.detectClick(gesture->getHand(false));
+        rightButton.detectClick(gesture->getHand(true));
         rightButton.draw(drawList);
         leftButton.draw(drawList);
     }

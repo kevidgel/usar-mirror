@@ -130,12 +130,30 @@ std::optional<std::string> get_default_font() {
     return font_path;
 }
 
+void processInputs(const std::shared_ptr<State>& state) {
+    while (!state->inputEventQueue.empty()) {
+        auto o = state->inputEventQueue.pop_front();
+        if (o.has_value()) {
+            const auto& val = o.value();
+            InputEvent event = o->val;
+
+            if (event == InputEvent::LEFT_SWIPE) {
+                state->activeCameraIdx = (state->activeCameraIdx + 2) % 3;
+            }
+            if (event == InputEvent::RIGHT_SWIPE) {
+                state->activeCameraIdx = (state->activeCameraIdx + 1) % 3;
+            }
+        }
+    }
+}
+
 extern "C" int main(int argc, char *argv[]) {
 
-    int filter = 1; //TODO: ADD UI FOR FILTER SELECTION
+    int filter = 0; //TODO: ADD UI FOR FILTER SELECTION
     std::string filename  = "models/Cube/Cube.gltf";
     if (filter==0){
-        filename = "models/Cube/Cube.gltf";
+        filename = "models/glasses/scene.gltf";
+        filename = "models/bruh.glb";
     }else if (filter==1){
         filename = "models/ray-ban_glasses.glb";
     }
@@ -203,10 +221,10 @@ extern "C" int main(int argc, char *argv[]) {
     }
 
     // Launch tasks
-    auto depthCameraInput = std::make_shared<DepthCameraInput>(state, 6);
-    auto cameraInput = std::make_shared<CameraInput>(state, 0);
-    // auto cameraInput2 = std::make_shared<CameraInput>(state, 7); // CHANGE THIS NUMBER TO APPROPRIATE
-    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, cameraInput);
+    auto depthCameraInput = std::make_shared<DepthCameraInput>(state);
+    auto leftCameraInput = std::make_shared<CameraInput>(state, 8);
+    auto rightCameraInput = std::make_shared<CameraInput>(state, 6);
+    auto gestureControlPipeline = std::make_shared<GestureControlPipeline>(state, depthCameraInput);
     auto userInterface = std::make_shared<UserInterface>(state, gestureControlPipeline);
     auto arduino = std::make_shared<Arduino>(state);
     auto modelRenderer = std::make_shared<UsArMirror::ModelRenderer>(state, filename);
@@ -226,10 +244,20 @@ extern "C" int main(int argc, char *argv[]) {
         if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
             state->flags.showDebug = false;
         }
-        
-        auto activeCam = cameraInput; // TODO: ADD UI TO CHOOSE ACTIVE CAMERA
 
-        activeCam->render();
+        processInputs(state);
+
+        if (state->activeCameraIdx == 1) {
+            depthCameraInput->render();
+        } else if (state->activeCameraIdx == 0) {
+            // LEFT rel to user
+            leftCameraInput->render();
+        } else if (state->activeCameraIdx == 2) {
+            // RIGHT rel to user
+            rightCameraInput->render();
+        } else {
+            spdlog::error("Invalid camera!");
+        }
 
         glm::vec3 model_pos = glm::vec3(0, 0, 0);
 
@@ -258,12 +286,12 @@ extern "C" int main(int argc, char *argv[]) {
         // model_mat = glm::rotate(model_mat, glm::radians(45.0f), glm::vec3(1, 0, 0));
         // model_mat = glm::rotate(model_mat, glm::radians(90.0f), glm::vec3(0, 0, 1));
         // model_mat = glm::scale(model_mat, glm::vec3(0.01f));
-        
+
 
         // glm::vec3 model_pos(-3, 0, -3);
         // glm::mat4 model_mat = glm::lookAt(glm::vec3(2, 2, 20), model_pos, glm::vec3(0, 1, 0));
         // glm::mat4 model_mat = glm::perspective(glm::radians(45.0f),state->viewportWidth / (float)state->viewportHeight, 0.01f, 1000.0f);
-        
+
         // glm::mat4 proj = glm::perspective(
         //     glm::radians(45.0f),  // 45 degree vertical FOV
         //     640.0f / 480.0f,      // Aspect ratio (width/height)
@@ -277,15 +305,39 @@ extern "C" int main(int argc, char *argv[]) {
         // );
         // glm::mat4 model_mat = glm::mat4(1.0f); // Identity: no scaling, no movement
 
-        
-    
-        auto R_vec = activeCam->getExtrinsics().colRange(0, 3).t();
-        auto t_vec = activeCam->getExtrinsics().col(3);
-        auto view = getViewMatrixFromExtrinsics(R_vec, t_vec);
-        auto K = activeCam->intrinsics.getK();
 
-        float scale_x = state->viewportWidth / (float)activeCam->intrinsics.width;
-        float scale_y = state->viewportHeight / (float)activeCam->intrinsics.height;
+        float scale_x, scale_y;
+        cv::MatExpr R_vec;
+        cv::Mat t_vec, K;
+        glm::mat4 view;
+        if (state->activeCameraIdx == 1) {
+            R_vec = depthCameraInput->getExtrinsics().colRange(0, 3).t();
+            t_vec = depthCameraInput->getExtrinsics().col(3);
+            view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+            K = depthCameraInput->intrinsics.getK();
+
+            scale_x = state->viewportWidth / (float)depthCameraInput->intrinsics.width;
+            scale_y = state->viewportHeight / (float)depthCameraInput->intrinsics.height;
+        } else if (state->activeCameraIdx == 0) {
+            // LEFT rel to user
+            R_vec = leftCameraInput->getExtrinsics().colRange(0, 3).t();
+            t_vec = leftCameraInput->getExtrinsics().col(3);
+            view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+            K = leftCameraInput->intrinsics.getK();
+
+            scale_x = state->viewportWidth / (float)leftCameraInput->intrinsics.width;
+            scale_y = state->viewportHeight / (float)leftCameraInput->intrinsics.height;
+        } else if (state->activeCameraIdx == 2) {
+            R_vec = rightCameraInput->getExtrinsics().colRange(0, 3).t();
+            t_vec = rightCameraInput->getExtrinsics().col(3);
+            view = getViewMatrixFromExtrinsics(R_vec, t_vec);
+            K = rightCameraInput->intrinsics.getK();
+
+            scale_x = state->viewportWidth / (float)rightCameraInput->intrinsics.width;
+            scale_y = state->viewportHeight / (float)rightCameraInput->intrinsics.height;
+            // RIGHT rel to user
+        } else {
+        }
 
         cv::Mat K_scaled = K.clone();
         K_scaled.at<float>(0, 0) *= scale_x;  // fx
@@ -317,17 +369,17 @@ extern "C" int main(int argc, char *argv[]) {
 
         // Combine view and model
         glEnable(GL_DEPTH_TEST);
-        modelRenderer->render(proj, view, model_mat, 1.0f); 
-        auto mvp = proj * view * model_mat;   
-        printMat4(mvp, "mvp");
+        modelRenderer->render(proj, view, model_mat, 1.0f);
+        auto mvp = proj * view * model_mat;
+        // printMat4(mvp, "mvp");
 
-        // gestureControlPipeline->render();
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
     // //  // Render frontends
         userInterface->render();
+        gestureControlPipeline->render();
 
 
         ImGui::Render();

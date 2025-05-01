@@ -33,37 +33,9 @@ std::string getSerialFromDevicePath(const std::string& devicePath) {
 
 namespace UsArMirror {
 
-CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx, int rotateCode
-    )
-    : state(state), running(true), rotateCode(rotateCode){
-    // Open capture
-    cap.open(idx, cv::CAP_V4L2);
-    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
-    width = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
-    height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
-    auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
-    spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
-    if (!cap.isOpened()) {
-    throw std::runtime_error("Could not open camera!");
-    }
-    
-    std::string devicePath = "/dev/video" + std::to_string(idx);
-    std::string serial = getSerialFromDevicePath(devicePath);
-    spdlog::info("Camera {} serial: {}", idx, serial);
-    intrinsics = cameraIntrinsics.find(serial)->second;
-
-    arucoDict = cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_250));
-
-    createGlTexture();
-    captureThread = std::thread(&CameraInput::captureLoop, this);
-    detectionThread = std::thread(&CameraInput::detectionLoop, this);
-}
-
 CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx
     )
-    : state(state), running(true), rotateCode(std::nullopt){
+    : state(state), running(true) {
     // Open capture
     cap.open(idx, cv::CAP_V4L2);
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -73,29 +45,31 @@ CameraInput::CameraInput(const std::shared_ptr<State>& state, int idx
     height = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
     auto framerate = static_cast<int>(cap.get(cv::CAP_PROP_FPS));
     spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
-    if (!cap.isOpened()) {
-        for (int i = 0; i <= 10; ++i) {
-            if (i == idx) continue;
-            if (cap.open(i, cv::CAP_V4L2)) {
-                cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-                cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
-                cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
-                spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
-                spdlog::warn("Fallback successful: opened camera at index {}", i);
-                idx = i;
-                break;
-            }
-        }
-
-        if (!cap.isOpened()) {
-            throw std::runtime_error("Could not open camera at index " + std::to_string(idx));
-        }
-    }
+    // if (!cap.isOpened()) {
+    //     for (int i = 10; i >= 0; --i) {
+    //         if (i == idx) continue;
+    //         if (cap.open(i, cv::CAP_V4L2)) {
+    //             cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    //             cap.set(cv::CAP_PROP_FRAME_WIDTH, state->viewportWidth);
+    //             cap.set(cv::CAP_PROP_FRAME_HEIGHT, state->viewportWidth);
+    //             spdlog::info("Webcam {}: width: {}, height: {} framerate: {}", idx, width, height, framerate);
+    //             spdlog::warn("Fallback successful: opened camera at index {}", i);
+    //             idx = i;
+    //             break;
+    //         }
+    //     }
+    //
+    //     if (!cap.isOpened()) {
+    //         throw std::runtime_error("Could not open camera at index " + std::to_string(idx));
+    //     }
+    // }
 
     std::string devicePath = "/dev/video" + std::to_string(idx);
     std::string serial = getSerialFromDevicePath(devicePath);
     spdlog::info("Camera {} serial: {}", idx, serial);
-    intrinsics = cameraIntrinsics.find(serial)->second;
+    if (cameraIntrinsics.find(serial) != cameraIntrinsics.end()) {
+        intrinsics = cameraIntrinsics.find(serial)->second;
+    }
 
     arucoDict = cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_250));
 
